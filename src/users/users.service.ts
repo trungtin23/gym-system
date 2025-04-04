@@ -26,10 +26,10 @@ export class UsersService {
     });
   }
 
-  findByEmail(email: string): Promise<User | null> {
+  async findByEmail(email: string): Promise<User> {
     return this.usersRepository.findOne({
       where: { email },
-      // relations: [''],
+      select: ['id', 'email', 'password'],
     });
   }
 
