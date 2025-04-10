@@ -12,9 +12,21 @@ export class UsersService {
     private usersRepository: Repository<User>,
   ) {}
   async create(createUserDto: CreateUserDto): Promise<User> {
-    return await this.usersRepository.save(createUserDto);
-  }
+    const user = new User();
+    user.full_Name = createUserDto.full_Name; // Ánh xạ thủ công
+    user.email = createUserDto.email;
+    user.password = createUserDto.password; // Đừng quên mã hóa mật khẩu
+    user.phone = createUserDto.phone;
+    user.gender = createUserDto.gender;
+    user.birthDate = createUserDto.birthDate
+      ? new Date(createUserDto.birthDate)
+      : null;
+    user.height = createUserDto.height;
+    user.weight = createUserDto.weight;
+    user.goal = createUserDto.goal;
 
+    return await this.usersRepository.save(user);
+  }
   findAll(): Promise<User[]> {
     return this.usersRepository.find();
   }

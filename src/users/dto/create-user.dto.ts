@@ -6,11 +6,13 @@ import {
   IsDecimal,
   IsDateString,
   MinLength,
+  IsNotEmpty, // Import thêm IsNotEmpty
 } from 'class-validator';
 
 export class CreateUserDto {
   @IsString()
-  fullName: string;
+  @IsNotEmpty()
+  full_Name: string;
 
   @IsEmail()
   email: string;

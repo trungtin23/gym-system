@@ -11,8 +11,8 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'full_name', type: 'varchar', length: 255 })
-  fullName: string;
+  @Column({ name: 'full_Name', type: 'varchar', length: 255 })
+  full_Name: string;
 
   @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
@@ -52,5 +52,4 @@ export class User {
     onUpdate: 'CURRENT_TIMESTAMP',
   })
   updatedAt: Date;
-  userId: any;
 }
