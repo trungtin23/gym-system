@@ -6,6 +6,8 @@ import {
   Patch,
   Param,
   Delete,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -13,6 +15,9 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { ResponeData } from 'src/global/responses/responses.global';
 import { HttpMessage, HttpStatus } from 'src/global/enums/enum';
 import { User } from 'src/entities/user.entity';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 
 @Controller('users')
 export class UsersController {
@@ -48,7 +53,7 @@ export class UsersController {
       }
       return new ResponeData<User>(
         HttpMessage.SUCCESS_MESSAGE,
-        HttpStatus.SUCESS,
+        HttpStatus.SUCCESS,
         await this.usersService.findAll(),
       );
     } catch (error) {
@@ -72,7 +77,7 @@ export class UsersController {
       }
       return new ResponeData<User>(
         HttpMessage.SUCCESS_MESSAGE,
-        HttpStatus.SUCESS,
+        HttpStatus.SUCCESS,
         user,
       );
     } catch (error) {
@@ -108,7 +113,7 @@ export class UsersController {
       const updatedUser = await this.usersService.findOne(id);
       return new ResponeData<User>(
         HttpMessage.UPDATE_MESSAGE,
-        HttpStatus.SUCESS,
+        HttpStatus.SUCCESS,
         updatedUser,
       );
     } catch (error) {
@@ -118,6 +123,23 @@ export class UsersController {
         null,
       );
     }
+  }
+
+  @Post('upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: './uploads',
+        filename: (req, file, cb) => {
+          const uniqueName = Date.now() + extname(file.originalname);
+          cb(null, uniqueName);
+        },
+      }),
+    }),
+  )
+  uploadImage(@UploadedFile() file: Express.Multer.File) {
+    const imageUrl = `http://localhost:3000/uploads/${file.filename}`;
+    return { imageUrl };
   }
 
   @Delete(':id')
@@ -140,7 +162,7 @@ export class UsersController {
     }
     return new ResponeData<User>(
       HttpMessage.DELETE_MESSAGE,
-      HttpStatus.SUCESS,
+      HttpStatus.SUCCESS,
       null,
     );
   }

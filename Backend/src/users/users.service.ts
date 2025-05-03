@@ -4,6 +4,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/entities/user.entity';
 import { DeleteResult, Repository, UpdateResult } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
@@ -13,17 +14,18 @@ export class UsersService {
   ) {}
   async create(createUserDto: CreateUserDto): Promise<User> {
     const user = new User();
-    user.full_Name = createUserDto.full_Name; // Ánh xạ thủ công
+    user.full_name = createUserDto.full_name;
     user.email = createUserDto.email;
-    user.password = createUserDto.password; // Đừng quên mã hóa mật khẩu
+    const saltRounds = 10;
+    user.password = await bcrypt.hash(createUserDto.password, saltRounds);
     user.phone = createUserDto.phone;
     user.gender = createUserDto.gender;
-    user.birthDate = createUserDto.birthDate
-      ? new Date(createUserDto.birthDate)
+    user.date_of_birth = createUserDto.date_of_birth
+      ? new Date(createUserDto.date_of_birth)
       : null;
-    user.height = createUserDto.height;
-    user.weight = createUserDto.weight;
-    user.goal = createUserDto.goal;
+    user.address = createUserDto.address;
+    user.role = createUserDto.role || 'USER';
+    user.status = createUserDto.status || 'ACTIVE';
 
     return await this.usersRepository.save(user);
   }
@@ -34,14 +36,14 @@ export class UsersService {
   findOne(id: string): Promise<User | null> {
     return this.usersRepository.findOne({
       where: { id },
-      // relations: [''],
+      relations: ['membership', 'payments'],
     });
   }
 
   async findByEmail(email: string): Promise<User> {
     return this.usersRepository.findOne({
       where: { email },
-      select: ['id', 'email', 'password'],
+      relations: ['membership'], // Nếu có quan hệ cần lấy
     });
   }
 

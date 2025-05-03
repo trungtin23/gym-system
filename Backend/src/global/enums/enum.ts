@@ -11,7 +11,7 @@ export enum HttpMessage {
 }
 
 export enum HttpStatus {
-  SUCESS = 200,
+  SUCCESS = 200,
   ERROR = 500,
   NOT_FOUND = 400,
   CREATED = 201,

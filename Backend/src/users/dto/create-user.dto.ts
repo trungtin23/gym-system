@@ -3,16 +3,16 @@ import {
   IsEnum,
   IsOptional,
   IsString,
-  IsDecimal,
   IsDateString,
   MinLength,
-  IsNotEmpty, // Import thêm IsNotEmpty
+  IsNotEmpty,
+  IsDecimal,
 } from 'class-validator';
 
 export class CreateUserDto {
   @IsString()
   @IsNotEmpty()
-  full_Name: string;
+  full_name: string;
 
   @IsEmail()
   email: string;
@@ -31,7 +31,7 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsDateString()
-  birthDate?: string;
+  date_of_birth?: string;
 
   @IsOptional()
   @IsDecimal()
@@ -44,4 +44,16 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   goal?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @IsOptional()
+  @IsEnum(['USER', 'TRAINER', 'STAFF', 'ADMIN'])
+  role?: 'USER' | 'TRAINER' | 'STAFF' | 'ADMIN';
+
+  @IsOptional()
+  @IsEnum(['ACTIVE', 'INACTIVE'])
+  status?: 'ACTIVE' | 'INACTIVE';
 }
