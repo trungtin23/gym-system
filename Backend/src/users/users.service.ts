@@ -36,7 +36,7 @@ export class UsersService {
   findOne(id: string): Promise<User | null> {
     return this.usersRepository.findOne({
       where: { id },
-      relations: ['membership', 'payments'],
+      relations: ['membership', 'payments', 'health'], // Nếu có quan hệ cần lấy
     });
   }
 

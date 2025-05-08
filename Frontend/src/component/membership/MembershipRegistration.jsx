@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import {
   CheckCircle,
   ArrowRight,
@@ -6,13 +6,45 @@ import {
   CalendarClock,
   DollarSign,
 } from "lucide-react";
+import axios from "axios";
+import QRPaymentPage from "./paymentqrcode";
+import { AuthContext } from "../../contexts/AuthProvider";
+// Import Material UI components
+import {
+  Alert,
+  AlertTitle,
+  Snackbar,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Button,
+} from "@mui/material";
 
 export default function MembershipRegistration() {
+  const { isLoggedIn, setIsLoggedIn, setUser, isLoading, user } =
+    useContext(AuthContext);
   const [membershipPlans, setMembershipPlans] = useState([]); // Dữ liệu từ API
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("credit");
   const [loading, setLoading] = useState(true); // Trạng thái tải dữ liệu
   const [error, setError] = useState(null); // Trạng thái lỗi
+
+  // Add state for Material UI alerts and dialogs
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
+  const [loginDialog, setLoginDialog] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(false);
+
+  // Handle snackbar close
+  const handleSnackbarClose = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
 
   // Hàm gọi API để lấy dữ liệu membership
   useEffect(() => {
@@ -22,10 +54,16 @@ export default function MembershipRegistration() {
         if (!response.ok) {
           throw new Error("Failed to fetch membership plans");
         }
+
         const data = await response.json();
         setMembershipPlans(data); // Gán dữ liệu từ API vào state
       } catch (err) {
         setError(err.message);
+        setSnackbar({
+          open: true,
+          message: `Lỗi: ${err.message}`,
+          severity: "error",
+        });
       } finally {
         setLoading(false); // Kết thúc trạng thái tải
       }
@@ -34,10 +72,75 @@ export default function MembershipRegistration() {
     fetchMembershipPlans();
   }, []);
 
-  const handleSubmit = (e) => {
+  // Hàm xử lý gửi form đăng ký
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Xử lý gửi form đăng ký
-    alert(`Đăng ký thành công gói: ${selectedPlan.name}`);
+
+    if (!user) {
+      setLoginDialog(true);
+      return;
+    }
+
+    if (!selectedPlan) {
+      setSnackbar({
+        open: true,
+        message: "Vui lòng chọn một gói tập!",
+        severity: "warning",
+      });
+      return;
+    }
+
+    setConfirmDialog(true);
+  };
+
+  const confirmRegistration = async () => {
+    setConfirmDialog(false);
+    setLoading(true);
+
+    try {
+      // Tính ngày bắt đầu và kết thúc
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(startDate.getDate() + selectedPlan.duration);
+
+      // Tạo dữ liệu cho bảng orders
+      const orderData = {
+        userId: user.data.id,
+        membershipId: selectedPlan.id,
+        paymentId: 1,
+        status: paymentMethod === "cash" ? "PENDING" : "COMPLETED",
+      };
+      console.log(orderData);
+
+      // Gửi yêu cầu POST tới endpoint /orders
+      const orderResponse = await axios.post(
+        "http://localhost:3000/orders",
+        orderData
+      );
+
+      if (orderResponse.status === 201) {
+        // Cập nhật thông tin user để phản ánh gói tập mới
+        const userResponse = user;
+        setUser(userResponse.data); // Cập nhật state user
+
+        setSnackbar({
+          open: true,
+          message: `Đăng ký thành công gói: ${selectedPlan.name}`,
+          severity: "success",
+        });
+      } else {
+        throw new Error("Lỗi khi lưu đơn hàng");
+      }
+    } catch (err) {
+      console.error("Lỗi khi đăng ký:", err);
+      setSnackbar({
+        open: true,
+        message: "Đăng ký thất bại. Vui lòng thử lại!",
+        severity: "error",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatCurrency = (amount) => {
@@ -48,11 +151,23 @@ export default function MembershipRegistration() {
   };
 
   if (loading) {
-    return <div className="text-center mt-10">Đang tải dữ liệu...</div>;
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <CircularProgress color="primary" />
+        <span className="ml-3">Đang tải dữ liệu...</span>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="text-center mt-10 text-red-500">Lỗi: {error}</div>;
+    return (
+      <div className="mt-10 max-w-2xl mx-auto">
+        <Alert severity="error">
+          <AlertTitle>Lỗi</AlertTitle>
+          {error}
+        </Alert>
+      </div>
+    );
   }
 
   return (
@@ -255,71 +370,23 @@ export default function MembershipRegistration() {
             </div>
 
             {paymentMethod === "credit" && (
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label
-                    className="block text-gray-700 text-sm font-medium mb-2"
-                    htmlFor="card-number"
-                  >
-                    Số thẻ
-                  </label>
-                  <input
-                    type="text"
-                    id="card-number"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="XXXX XXXX XXXX XXXX"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label
-                      className="block text-gray-700 text-sm font-medium mb-2"
-                      htmlFor="expiry"
-                    >
-                      Ngày hết hạn
-                    </label>
-                    <input
-                      type="text"
-                      id="expiry"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="MM/YY"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      className="block text-gray-700 text-sm font-medium mb-2"
-                      htmlFor="cvv"
-                    >
-                      CVV
-                    </label>
-                    <input
-                      type="text"
-                      id="cvv"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="123"
-                    />
-                  </div>
-                </div>
-              </div>
+              <QRPaymentPage price={selectedPlan.price} />
             )}
 
             {paymentMethod === "banking" && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-6">
-                <p className="text-sm text-yellow-800">
-                  Bạn sẽ được chuyển hướng đến trang thanh toán của ngân hàng
-                  sau khi xác nhận.
-                </p>
-              </div>
+              <Alert severity="info" variant="outlined" className="mb-6">
+                <AlertTitle>Thông báo</AlertTitle>
+                Bạn sẽ được chuyển hướng đến trang thanh toán của ngân hàng sau
+                khi xác nhận.
+              </Alert>
             )}
 
             {paymentMethod === "cash" && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-6">
-                <p className="text-sm text-yellow-800">
-                  Vui lòng thanh toán tại quầy lễ tân trong vòng 24 giờ để hoàn
-                  tất đăng ký.
-                </p>
-              </div>
+              <Alert severity="warning" variant="outlined" className="mb-6">
+                <AlertTitle>Lưu ý</AlertTitle>
+                Vui lòng thanh toán tại quầy lễ tân trong vòng 24 giờ để hoàn
+                tất đăng ký.
+              </Alert>
             )}
 
             <div className="flex justify-between items-center pt-4 border-t border-gray-200">
@@ -341,6 +408,72 @@ export default function MembershipRegistration() {
           </form>
         )}
       </div>
+
+      {/* Material UI Dialogs and Snackbars */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbar.severity}
+          variant="filled"
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+
+      {/* Login Dialog */}
+      <Dialog open={loginDialog} onClose={() => setLoginDialog(false)}>
+        <DialogTitle>Yêu cầu đăng nhập</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Bạn cần đăng nhập để đăng ký gói tập. Vui lòng đăng nhập hoặc đăng
+            ký tài khoản mới.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLoginDialog(false)} color="primary">
+            Đóng
+          </Button>
+          <Button
+            onClick={() => {
+              setLoginDialog(false);
+              // Add navigation to login page if needed
+              // window.location.href = '/login';
+            }}
+            color="primary"
+            variant="contained"
+          >
+            Đăng nhập
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmDialog} onClose={() => setConfirmDialog(false)}>
+        <DialogTitle>Xác nhận đăng ký</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Bạn có chắc chắn muốn đăng ký gói {selectedPlan?.name} với giá{" "}
+            {selectedPlan ? formatCurrency(selectedPlan.price) : ""} không?
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDialog(false)} color="error">
+            Hủy
+          </Button>
+          <Button
+            onClick={confirmRegistration}
+            color="primary"
+            variant="contained"
+          >
+            Xác nhận
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 }

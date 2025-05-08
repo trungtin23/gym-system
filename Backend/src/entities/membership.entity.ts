@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Order } from './orders.entity';
 
 @Entity('memberships')
 export class Membership {
@@ -19,4 +20,6 @@ export class Membership {
 
   @Column('simple-array')
   features: string[];
+  @OneToMany(() => Order, (order) => order.membership)
+  orders: Order[];
 }

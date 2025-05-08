@@ -7,6 +7,9 @@ import { UsersModule } from './users/users.module';
 import { MembershipsModule } from './memberships/memberships.module';
 import { PaymentsModule } from './payments/payments.module';
 import { TrainerModule } from './trainer/trainer.module';
+import { OrdersModule } from './orders/orders.module';
+import { VnpayService } from './vnpay/vnpay.service';
+import { HealthsModule } from './healths/healths.module';
 
 @Module({
   imports: [
@@ -25,8 +28,10 @@ import { TrainerModule } from './trainer/trainer.module';
     MembershipsModule,
     PaymentsModule,
     TrainerModule,
+    OrdersModule,
+    HealthsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, VnpayService],
 })
 export class AppModule {}

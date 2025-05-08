@@ -8,7 +8,10 @@ import {
   Delete,
   HttpCode,
   HttpStatus,
+  Req,
+  Res,
 } from '@nestjs/common';
+import { Request, Response } from 'express';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
@@ -16,6 +19,34 @@ import { UpdatePaymentDto } from './dto/update-payment.dto';
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
+
+  @Get('create')
+  async createPayment(@Req() req: Request, @Res() res: Response) {
+    const orderId = Date.now().toString();
+    const amount = 10000; // 10000 VND
+    const ipAddr = req.ip;
+
+    const paymentUrl = await this.paymentsService.createPaymentUrl(
+      orderId,
+      amount,
+      ipAddr,
+    );
+    res.redirect(paymentUrl);
+  }
+
+  @Get('vnpay-return')
+  async paymentReturn(@Req() req: Request) {
+    const result = await this.paymentsService.verifyPayment(req.query);
+    if (result.isVerified) {
+      if (result.isSuccess) {
+        return `Thanh toán thành công! Mã giao dịch: ${result.vnp_TxnRef}`;
+      } else {
+        return `Thanh toán thất bại: ${result.message || 'Unknown error'}`;
+      }
+    } else {
+      return 'Chữ ký không hợp lệ!';
+    }
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

@@ -4,13 +4,15 @@ import {
   Column,
   ManyToOne,
   JoinColumn,
+  OneToOne,
 } from 'typeorm';
 import { User } from './user.entity';
+import { Order } from './orders.entity';
 
 @Entity('payments')
 export class Payment {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+  @PrimaryGeneratedColumn()
+  id: number;
 
   @Column({
     type: 'enum',

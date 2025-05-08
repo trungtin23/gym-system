@@ -5,15 +5,42 @@ import { Payment } from 'src/entities/payment.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { User } from 'src/entities/user.entity';
+import { VnpayService } from 'nestjs-vnpay';
+import { ProductCode, VnpLocale, dateFormat } from 'vnpay';
 
 @Injectable()
 export class PaymentsService {
   constructor(
+    private readonly vnpayService: VnpayService,
     @InjectRepository(Payment)
     private paymentsRepository: Repository<Payment>,
     @InjectRepository(User)
     private usersRepository: Repository<User>,
   ) {}
+
+  async createPaymentUrl(orderId: string, amount: number, ipAddr: string) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const paymentUrl = await this.vnpayService.buildPaymentUrl({
+      vnp_Amount: amount * 100, // VNPay yêu cầu số tiền tính bằng cent-face
+      vnp_IpAddr: ipAddr,
+      vnp_TxnRef: `ORDER${orderId}`,
+      vnp_OrderInfo: `Thanh toan don hang ${orderId}`,
+      vnp_OrderType: ProductCode.Other,
+      vnp_ReturnUrl: 'http://localhost:3000/payment/vnpay-return',
+      vnp_Locale: VnpLocale.VN,
+      vnp_CreateDate: dateFormat(new Date()),
+      vnp_ExpireDate: dateFormat(tomorrow),
+    });
+
+    return paymentUrl;
+  }
+
+  async verifyPayment(query: any) {
+    const result = await this.vnpayService.verifyReturnUrl(query);
+    return result;
+  }
 
   async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
     const user = await this.usersRepository.findOne({
@@ -39,7 +66,7 @@ export class PaymentsService {
 
   async findOne(id: string): Promise<Payment> {
     const payment = await this.paymentsRepository.findOne({
-      where: { id },
+      where: { id: Number(id) },
       relations: ['user'],
     });
     if (!payment) {

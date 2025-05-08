@@ -1,3 +1,4 @@
+import { Health } from './health.entity';
 import {
   Entity,
   Column,
@@ -56,6 +57,10 @@ export class User {
 
   @OneToMany(() => Payment, (payment) => payment.user)
   payments: Payment[];
+
+  @OneToOne(() => Health, (health) => health.user)
+  health: Health[];
+  userId: any;
 
   @CreateDateColumn({
     name: 'created_at',
