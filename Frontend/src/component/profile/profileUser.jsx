@@ -297,26 +297,35 @@ export default function GymMemberProfile() {
               </div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600">Chiều cao:</span>
-                <span className="font-medium">{displayData.stats.height}</span>
+                <span className="font-medium">
+                  {userInf?.health.height + " cm" || ""}
+                </span>
               </div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600">Cân nặng:</span>
-                <span className="font-medium">{displayData.stats.weight}</span>
+                <span className="font-medium">
+                  {userInf?.health.weight + " kg" || ""}
+                </span>
               </div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600">Tỷ lệ mỡ:</span>
-                <span className="font-medium">{displayData.stats.bodyFat}</span>
+                <span className="font-medium">
+                  {userInf?.health.bodyFatPercentage + " %" || ""}
+                </span>
               </div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600">BMI:</span>
-                <span className="font-medium">{displayData.stats.bmi}</span>
+                <span className="font-medium">
+                  {" "}
+                  {userInf?.health.bmi || ""}
+                </span>
               </div>
             </div>
 
             <div className="border-t pt-4 mt-4">
               <h3 className="font-medium mb-2">Mục tiêu tập luyện</h3>
               <ul className="space-y-2">
-                {displayData.fitnessGoals.map((goal, index) => (
+                {userInf?.health.trainingGoals.map((goal, index) => (
                   <li
                     key={index}
                     className="flex items-center gap-2 text-gray-700"
@@ -337,17 +346,17 @@ export default function GymMemberProfile() {
             <div className="flex border-b">
               <button
                 onClick={() => setActiveTab("overview")}
-                className={`py-3 px-6 font-medium ${
+                className={`py-3 px-8 font-bold  ${
                   activeTab === "overview"
                     ? "text-blue-600 border-b-2 border-blue-600"
-                    : "text-gray-600"
+                    : "text-gray-600 "
                 }`}
               >
                 Tổng quan
               </button>
               <button
                 onClick={() => setActiveTab("workouts")}
-                className={`py-3 px-6 font-medium ${
+                className={`py-3 px-8 font-bold ${
                   activeTab === "workouts"
                     ? "text-blue-600 border-b-2 border-blue-600"
                     : "text-gray-600"
@@ -357,7 +366,7 @@ export default function GymMemberProfile() {
               </button>
               <button
                 onClick={() => setActiveTab("achievements")}
-                className={`py-3 px-6 font-medium ${
+                className={`py-3 px-8 font-bold ${
                   activeTab === "achievements"
                     ? "text-blue-600 border-b-2 border-blue-600"
                     : "text-gray-600"
