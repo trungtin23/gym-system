@@ -1,8 +1,12 @@
+// src/components/LoginForm.js
 import axios from "axios";
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
+import { AuthContext } from "../../contexts/AuthProvider";
+// Sử dụng đúng đường dẫn
 
 export default function LoginForm() {
+  const { checkAuth } = useContext(AuthContext); // Lấy checkAuth từ AuthContext
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [pass, setPassword] = useState("");
@@ -10,7 +14,7 @@ export default function LoginForm() {
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
-    e.preventDefault(); // Ngăn chặn hành vi mặc định của form
+    e.preventDefault();
     setLoading(true);
     setError("");
 
@@ -21,11 +25,14 @@ export default function LoginForm() {
       });
 
       // Lưu token vào localStorage
-      const token = response.data.access_token; // Giả sử API trả về token trong `response.data.token`
+      const token = response.data.access_token;
       localStorage.setItem("userToken", token);
 
+      // Cập nhật trạng thái AuthContext
+      await checkAuth(); // Gọi checkAuth để cập nhật isLoggedIn và user
+
       console.log("Đăng nhập thành công:", response);
-      navigate("/"); // Di chuyển đến trang chủ sau khi đăng nhập thành công
+      navigate("/"); // Di chuyển đến trang chủ
     } catch (error) {
       console.error("Lỗi đăng nhập:", error);
       setError("Đăng nhập thất bại. Vui lòng kiểm tra email và mật khẩu.");

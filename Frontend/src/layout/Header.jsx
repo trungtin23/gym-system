@@ -1,23 +1,25 @@
-import React, { useState, useEffect } from "react";
+// src/components/Header.js
+import React, { useState, useContext } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
+import { AuthContext } from "../contexts/AuthProvider";
 
 export default function Header() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { isLoggedIn, setIsLoggedIn, setUser, isLoading } =
+    useContext(AuthContext);
   const [showMenu, setShowMenu] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Kiểm tra xem userToken có trong localStorage không
-    const token = localStorage.getItem("userToken");
-    setIsLoggedIn(!!token); // Nếu token tồn tại, set isLoggedIn thành true
-  }, []);
-
   const handleLogout = () => {
-    // Xóa token khỏi localStorage và chuyển hướng về trang đăng nhập
     localStorage.removeItem("userToken");
     setIsLoggedIn(false);
+    setUser(null);
+    setShowMenu(false);
     navigate("/login");
   };
+
+  if (isLoading) {
+    return <div className="text-center py-4">Đang xác thực...</div>;
+  }
 
   return (
     <div className="">
