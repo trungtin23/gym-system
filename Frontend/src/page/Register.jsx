@@ -1,10 +1,10 @@
-import React from 'react'
-import ResisterForm from '../component/login/ResisterForm'
+import React from "react";
+import ResisterForm from "../components/login/ResisterForm";
 
 export default function Register() {
   return (
     <div>
-        <ResisterForm/>
+      <ResisterForm />
     </div>
-  )
+  );
 }

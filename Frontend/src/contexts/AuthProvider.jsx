@@ -39,9 +39,9 @@ export const AuthProvider = ({ children }) => {
         const res = await axios.get(
           `http://localhost:3000/users/${decoded.sub}`,
           {
-            // headers: {
-            //   Authorization: `Bearer ${token}`,
-            // },
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           }
         );
         setUser(res.data);

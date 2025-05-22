@@ -48,7 +48,7 @@ export default function Header() {
                       </a>
                     </li>
                     <li className="nav-item font-bold">
-                      <a className="page-scroll nav-link" href="#feature">
+                      <a className="page-scroll nav-link" href="/schedule">
                         Lịch Tập
                       </a>
                     </li>

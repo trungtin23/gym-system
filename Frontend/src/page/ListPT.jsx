@@ -1,5 +1,5 @@
 import React from "react";
-import ListPTComponent from "../component/PT/listPT";
+import ListPTComponent from "../components/PT/listPT";
 
 export default function ListPT() {
   return (

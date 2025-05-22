@@ -17,4 +17,5 @@ export enum HttpStatus {
   CREATED = 201,
   BAD_REQUEST = 404,
   UNAUTHORIZED = 401,
+  FORBIDDEN,
 }

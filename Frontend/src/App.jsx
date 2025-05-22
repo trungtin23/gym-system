@@ -9,6 +9,7 @@ import Membership from "./page/Membership";
 import Header from "./layout/Header";
 import Profile from "./page/Profile";
 import ListPT from "./page/ListPT";
+import Schedule from "./page/Schedule";
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/membership" element={<Membership />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/listPT" element={<ListPT />} />
+          <Route path="/schedule" element={<Schedule />} />
         </Route>
       </Routes>
     </div>

@@ -10,6 +10,9 @@ import { TrainerModule } from './trainer/trainer.module';
 import { OrdersModule } from './orders/orders.module';
 import { VnpayService } from './vnpay/vnpay.service';
 import { HealthsModule } from './healths/healths.module';
+import { AppoinmentsModule } from './appoinments/appoinments.module';
+import { TrainingTimeSlotsModule } from './training-time-slots/training-time-slots.module';
+import { TrainerschedulesModule } from './trainerschedules/trainerschedules.module';
 
 @Module({
   imports: [
@@ -30,6 +33,9 @@ import { HealthsModule } from './healths/healths.module';
     TrainerModule,
     OrdersModule,
     HealthsModule,
+    AppoinmentsModule,
+    TrainingTimeSlotsModule,
+    TrainerschedulesModule,
   ],
   controllers: [AppController],
   providers: [AppService, VnpayService],
