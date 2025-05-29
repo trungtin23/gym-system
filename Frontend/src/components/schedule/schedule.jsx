@@ -1,1046 +1,2191 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import axios from "axios";
-import { Calendar, momentLocalizer } from "react-big-calendar";
 import moment from "moment";
-import "react-big-calendar/lib/css/react-big-calendar.css";
-import {
-  Bell,
-  Clock,
-  Users,
-  ChevronRight,
-  ChevronLeft,
-  MoreVertical,
-  Filter,
-  Calendar as CalendarIcon,
-  List,
-  Grid,
-  CheckCircle,
-  XCircle,
-  HelpCircle,
-} from "lucide-react";
 import "moment/locale/vi";
 import { toast } from "react-toastify";
+import { jwtDecode } from "jwt-decode";
+import {
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Users,
+  MapPin,
+  CheckCircle,
+  XCircle,
+  Dumbbell,
+  Plus,
+  MoreHorizontal,
+  Search,
+  Filter,
+  Star,
+  CalendarDays,
+  X,
+  Activity,
+  TrendingUp,
+  Heart,
+  Target,
+  User,
+  Phone,
+  Mail,
+  Edit3,
+  Eye,
+  AlertCircle,
+  Award,
+  BarChart3,
+} from "lucide-react";
+import { AuthContext } from "../../contexts/AuthProvider";
 
 moment.locale("vi");
-const localizer = momentLocalizer(moment);
 
-export default function PTScheduleComponent() {
-  const [view, setView] = useState("month");
-  const [date, setDate] = useState(new Date());
-  const [schedules, setSchedules] = useState([]);
-  const [bookings, setBookings] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [dashboardStats, setDashboardStats] = useState({
-    totalBookings: 0,
-    pendingBookings: 0,
-    todayBookings: 0,
-    completedBookings: 0,
+// Component đánh giá sao
+const StarRating = ({ rating, onRatingChange, readonly = false }) => {
+  return (
+    <div className="flex items-center space-x-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          onClick={() => !readonly && onRatingChange && onRatingChange(star)}
+          className={`focus:outline-none ${
+            readonly ? "cursor-default" : "cursor-pointer hover:scale-110"
+          } transition-transform`}
+          disabled={readonly}
+        >
+          <Star
+            className={`h-4 w-4 ${
+              star <= rating ? "text-yellow-400 fill-current" : "text-gray-300"
+            }`}
+          />
+        </button>
+      ))}
+    </div>
+  );
+};
+
+// Component form kết quả buổi tập
+const WorkoutResultForm = ({ booking, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    calories_burned: booking.workoutResult?.calories_burned || "",
+    current_weight: booking.workoutResult?.current_weight || "",
+    bmi: booking.workoutResult?.bmi || "",
+    workout_duration_minutes:
+      booking.workoutResult?.workout_duration_minutes || "",
+    completion_percentage: booking.workoutResult?.completion_percentage || "",
+    performance_notes: booking.workoutResult?.performance_notes || "",
+    trainer_rating: booking.workoutResult?.trainer_rating || 0,
+    trainer_feedback: booking.workoutResult?.trainer_feedback || "",
+    heart_rate_avg: booking.workoutResult?.heart_rate_avg || "",
+    heart_rate_max: booking.workoutResult?.heart_rate_max || "",
+    exercises_completed: booking.workoutResult?.exercises_completed || "",
+    next_session_recommendations:
+      booking.workoutResult?.next_session_recommendations || "",
   });
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [displayMode, setDisplayMode] = useState("calendar"); // calendar, list
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Mock PT ID - Sẽ được thay thế bằng ID của người dùng đăng nhập
-  const trainerId = "PT123";
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        // Giả lập lấy dữ liệu từ API
-        // Trong thực tế, đây sẽ là các endpoint thực từ backend của bạn
-        const [schedulesRes, bookingsRes] = await Promise.all([
-          axios.get(`/api/trainer/${trainerId}/schedules`),
-          axios.get(`/api/trainer/${trainerId}/bookings`),
-        ]);
-
-        // Sẽ thay bằng dữ liệu API thực tế
-        // Mockup data cho mục đích demo
-        const mockSchedules = generateMockSchedules();
-        const mockBookings = generateMockBookings();
-
-        setSchedules(mockSchedules);
-        setBookings(mockBookings);
-
-        // Tạo events cho calendar từ schedules và bookings
-        const combinedEvents = [
-          ...mockSchedules.map((schedule) => ({
-            id: schedule.id,
-            title: "Ca làm việc",
-            start: new Date(`${schedule.date}T${schedule.startTime}`),
-            end: new Date(`${schedule.date}T${schedule.endTime}`),
-            resourceId: "schedule",
-            status: "available",
-            type: "schedule",
-            schedule,
-          })),
-          ...mockBookings.map((booking) => ({
-            id: booking.id,
-            title: `Buổi tập: ${booking.customerName}`,
-            start: new Date(`${booking.date}T${booking.startTime}`),
-            end: new Date(`${booking.date}T${booking.endTime}`),
-            resourceId: "booking",
-            status: booking.status,
-            type: "booking",
-            booking,
-          })),
-        ];
-
-        setEvents(combinedEvents);
-
-        // Tính toán các thống kê cho dashboard
-        const today = new Date().toISOString().split("T")[0];
-        setDashboardStats({
-          totalBookings: mockBookings.length,
-          pendingBookings: mockBookings.filter((b) => b.status === "PENDING")
-            .length,
-          todayBookings: mockBookings.filter((b) => b.date === today).length,
-          completedBookings: mockBookings.filter(
-            (b) => b.status === "COMPLETED"
-          ).length,
-        });
-
-        setLoading(false);
-      } catch (error) {
-        console.error("Lỗi khi tải dữ liệu:", error);
-        toast.error("Không thể tải lịch tập. Vui lòng thử lại sau.");
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [trainerId]);
-
-  // Hàm tạo dữ liệu mẫu cho schedules
-  const generateMockSchedules = () => {
-    const schedules = [];
-    const daysOfWeek = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
-    const timeSlots = [
-      { start: "08:00:00", end: "10:00:00" },
-      { start: "10:30:00", end: "12:30:00" },
-      { start: "14:00:00", end: "16:00:00" },
-      { start: "17:00:00", end: "19:00:00" },
-    ];
-
-    let id = 1;
-    // Tạo lịch cho 4 tuần tới
-    for (let week = 0; week < 4; week++) {
-      daysOfWeek.forEach((day) => {
-        // Không phải mọi ngày đều có tất cả các slot (để trông tự nhiên hơn)
-        const availableSlots =
-          day === "WEDNESDAY"
-            ? timeSlots.slice(0, 2)
-            : day === "FRIDAY"
-            ? timeSlots.slice(1, 3)
-            : timeSlots;
-
-        availableSlots.forEach((slot) => {
-          const date = new Date();
-          date.setDate(date.getDate() + week * 7 + getDayOffset(day));
-          const dateStr = date.toISOString().split("T")[0];
-
-          schedules.push({
-            id: `sch-${id++}`,
-            dayOfWeek: day,
-            date: dateStr,
-            startTime: slot.start,
-            endTime: slot.end,
-            isAvailable: Math.random() > 0.2, // 80% là available
-          });
-        });
-      });
-    }
-    return schedules;
+  const handleInputChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Hàm tạo dữ liệu mẫu cho bookings
-  const generateMockBookings = () => {
-    const bookings = [];
-    const statuses = ["CONFIRMED", "PENDING", "COMPLETED", "CANCELLED"];
-    const customers = [
-      {
-        id: "cust1",
-        name: "Nguyễn Văn An",
-        phone: "0901234567",
-        email: "an@example.com",
-      },
-      {
-        id: "cust2",
-        name: "Trần Thị Bình",
-        phone: "0912345678",
-        email: "binh@example.com",
-      },
-      {
-        id: "cust3",
-        name: "Lê Văn Cường",
-        phone: "0923456789",
-        email: "cuong@example.com",
-      },
-      {
-        id: "cust4",
-        name: "Phạm Thị Dung",
-        phone: "0934567890",
-        email: "dung@example.com",
-      },
-    ];
-
-    let id = 1;
-    // Tạo random bookings dựa trên schedules
-    const mockSchedules = generateMockSchedules();
-    for (let i = 0; i < 15; i++) {
-      const randomSchedule =
-        mockSchedules[Math.floor(Math.random() * mockSchedules.length)];
-      const randomCustomer =
-        customers[Math.floor(Math.random() * customers.length)];
-      const randomStatus =
-        statuses[Math.floor(Math.random() * statuses.length)];
-
-      bookings.push({
-        id: `book-${id++}`,
-        date: randomSchedule.date,
-        startTime: randomSchedule.startTime,
-        endTime: randomSchedule.endTime,
-        customerId: randomCustomer.id,
-        customerName: randomCustomer.name,
-        customerPhone: randomCustomer.phone,
-        customerEmail: randomCustomer.email,
-        status: randomStatus,
-        notes:
-          randomStatus === "CANCELLED"
-            ? "Khách hàng bận đột xuất"
-            : "Tập trung vào bài tập cơ tay và vai",
-        createdAt: new Date(
-          new Date(randomSchedule.date).getTime() -
-            Math.floor(Math.random() * 7) * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      });
-    }
-    return bookings;
-  };
-
-  // Helper function để tính offset từ ngày hiện tại đến ngày trong tuần mong muốn
-  const getDayOffset = (day) => {
-    const days = {
-      MONDAY: 1,
-      TUESDAY: 2,
-      WEDNESDAY: 3,
-      THURSDAY: 4,
-      FRIDAY: 5,
-      SATURDAY: 6,
-      SUNDAY: 0,
-    };
-    const today = new Date().getDay();
-    return (days[day] - today + 7) % 7;
-  };
-
-  // Xử lý khi người dùng click vào một event
-  const handleSelectEvent = (event) => {
-    setSelectedEvent(event);
-    setIsModalOpen(true);
-  };
-
-  // Xử lý khi chọn view khác (tháng, tuần, ngày)
-  const handleViewChange = (newView) => {
-    setView(newView);
-  };
-
-  // Xử lý thay đổi trạng thái booking
-  const handleChangeBookingStatus = async (bookingId, newStatus) => {
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
     try {
-      // Trong ứng dụng thực tế, gọi API để cập nhật trạng thái
-      // await axios.patch(`/api/bookings/${bookingId}`, { status: newStatus });
+      const processedData = {
+        ...formData,
+        calories_burned: formData.calories_burned
+          ? parseFloat(formData.calories_burned)
+          : undefined,
+        current_weight: formData.current_weight
+          ? parseFloat(formData.current_weight)
+          : undefined,
+        bmi: formData.bmi ? parseFloat(formData.bmi) : undefined,
+        workout_duration_minutes: formData.workout_duration_minutes
+          ? parseInt(formData.workout_duration_minutes)
+          : undefined,
+        completion_percentage: formData.completion_percentage
+          ? parseInt(formData.completion_percentage)
+          : undefined,
+        heart_rate_avg: formData.heart_rate_avg
+          ? parseFloat(formData.heart_rate_avg)
+          : undefined,
+        heart_rate_max: formData.heart_rate_max
+          ? parseFloat(formData.heart_rate_max)
+          : undefined,
+        trainer_rating: formData.trainer_rating || undefined,
+      };
 
-      // Cập nhật state
-      setBookings(
-        bookings.map((booking) =>
-          booking.id === bookingId ? { ...booking, status: newStatus } : booking
-        )
-      );
-
-      setEvents(
-        events.map((event) =>
-          event.type === "booking" && event.booking.id === bookingId
-            ? {
-                ...event,
-                status: newStatus,
-                booking: { ...event.booking, status: newStatus },
-              }
-            : event
-        )
-      );
-
-      setSelectedEvent(null);
-      setIsModalOpen(false);
-
-      toast.success("Cập nhật trạng thái thành công!");
+      await onSave(booking.id, processedData);
+      onClose();
     } catch (error) {
-      console.error("Lỗi khi cập nhật trạng thái:", error);
-      toast.error("Không thể cập nhật trạng thái. Vui lòng thử lại!");
+      console.error("Lỗi khi lưu kết quả buổi tập:", error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // Custom styles for events
-  const eventStyleGetter = (event) => {
-    let backgroundColor = "";
-    let borderColor = "";
-
-    if (event.type === "schedule") {
-      backgroundColor = "#BBDEFB";
-      borderColor = "#2196F3";
-    } else {
-      // Bookings
-      switch (event.status) {
-        case "CONFIRMED":
-          backgroundColor = "#C8E6C9";
-          borderColor = "#4CAF50";
-          break;
-        case "PENDING":
-          backgroundColor = "#FFECB3";
-          borderColor = "#FFC107";
-          break;
-        case "COMPLETED":
-          backgroundColor = "#D1C4E9";
-          borderColor = "#673AB7";
-          break;
-        case "CANCELLED":
-          backgroundColor = "#FFCCBC";
-          borderColor = "#FF5722";
-          break;
-        default:
-          backgroundColor = "#E1F5FE";
-          borderColor = "#03A9F4";
-      }
-    }
-
-    return {
-      style: {
-        backgroundColor,
-        borderLeft: `4px solid ${borderColor}`,
-        borderRadius: "4px",
-        opacity: 0.95,
-        color: "#373a3c",
-        padding: "2px 5px",
-        fontSize: "13px",
-        textAlign: "left",
-        fontWeight: "500",
-      },
-    };
-  };
-
-  // Filter events based on status
-  const filteredEvents = events.filter((event) => {
-    if (filterStatus === "all") return true;
-    if (event.type === "schedule") return filterStatus === "schedule";
-    return event.status === filterStatus;
-  });
-
-  // Format date for header
-  const formatHeaderDate = (date) => {
-    if (view === "month") {
-      return moment(date).format("MMMM YYYY");
-    } else if (view === "week") {
-      const start = moment(date).startOf("week").format("DD/MM");
-      const end = moment(date).endOf("week").format("DD/MM");
-      return `${start} - ${end}, ${moment(date).format("YYYY")}`;
-    } else {
-      return moment(date).format("dddd, DD MMMM YYYY");
-    }
-  };
-
-  // Render bookings in list view
-  const renderBookingsList = () => {
-    // Group bookings by date
-    const groupedBookings = {};
-    const filteredBookings = bookings.filter((booking) => {
-      if (filterStatus === "all") return true;
-      return booking.status === filterStatus;
-    });
-
-    filteredBookings.forEach((booking) => {
-      if (!groupedBookings[booking.date]) {
-        groupedBookings[booking.date] = [];
-      }
-      groupedBookings[booking.date].push(booking);
-    });
-
-    // Sort dates
-    const sortedDates = Object.keys(groupedBookings).sort(
-      (a, b) => new Date(a) - new Date(b)
-    );
-
-    return (
-      <div className="space-y-6">
-        {sortedDates.map((date) => (
-          <div key={date} className="booking-day">
-            <h3 className="text-lg font-semibold text-gray-800 mb-3 pb-2 border-b">
-              {moment(date).format("dddd, DD/MM/YYYY")}
-            </h3>
-            <div className="space-y-3">
-              {groupedBookings[date].map((booking) => (
-                <div
-                  key={booking.id}
-                  className="booking-card bg-white rounded-lg border shadow-sm hover:shadow-md transition-shadow p-4"
-                  onClick={() => {
-                    setSelectedEvent({
-                      type: "booking",
-                      booking: booking,
-                    });
-                    setIsModalOpen(true);
-                  }}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-medium text-gray-900">
-                        {booking.customerName}
-                      </h4>
-                      <div className="text-gray-500 text-sm">
-                        {booking.startTime.substring(0, 5)} -{" "}
-                        {booking.endTime.substring(0, 5)}
-                      </div>
-                    </div>
-                    <div
-                      className={`
-                      px-2 py-1 rounded-full text-xs font-medium
-                      ${
-                        booking.status === "CONFIRMED"
-                          ? "bg-green-100 text-green-800"
-                          : ""
-                      }
-                      ${
-                        booking.status === "PENDING"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : ""
-                      }
-                      ${
-                        booking.status === "COMPLETED"
-                          ? "bg-purple-100 text-purple-800"
-                          : ""
-                      }
-                      ${
-                        booking.status === "CANCELLED"
-                          ? "bg-red-100 text-red-800"
-                          : ""
-                      }
-                    `}
-                    >
-                      {booking.status === "CONFIRMED" && "Đã xác nhận"}
-                      {booking.status === "PENDING" && "Chờ xác nhận"}
-                      {booking.status === "COMPLETED" && "Hoàn thành"}
-                      {booking.status === "CANCELLED" && "Đã hủy"}
-                    </div>
-                  </div>
-                  {booking.notes && (
-                    <div className="mt-2 text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                      <strong>Ghi chú:</strong> {booking.notes}
-                    </div>
-                  )}
-                  <div className="mt-3 flex items-center gap-3 text-sm text-gray-500">
-                    <div className="flex items-center">
-                      <Users className="h-4 w-4 mr-1" />
-                      <span>{booking.customerPhone}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Clock className="h-4 w-4 mr-1" />
-                      <span>Đặt {moment(booking.createdAt).fromNow()}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+  return (
+    <div className="p-6 max-h-[70vh] overflow-y-auto">
+      <div className="mb-6">
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">
+          {booking.workoutResult
+            ? "Cập nhật kết quả buổi tập"
+            : "Ghi kết quả buổi tập"}
+        </h3>
+        <div className="bg-blue-50 rounded-lg p-4">
+          <div className="flex items-center space-x-3">
+            <img
+              src={
+                booking.customer?.avatar ||
+                "https://randomuser.me/api/portraits/men/32.jpg"
+              }
+              alt={booking.customer?.name}
+              className="w-12 h-12 rounded-full object-cover"
+            />
+            <div>
+              <p className="font-medium text-gray-900">
+                {booking.customer?.name}
+              </p>
+              <p className="text-sm text-gray-600">
+                {moment(booking.date).format("DD/MM/YYYY")}, {booking.timeStart}{" "}
+                - {booking.timeEnd}
+              </p>
             </div>
           </div>
-        ))}
+        </div>
+      </div>
 
-        {sortedDates.length === 0 && (
-          <div className="py-16 text-center">
-            <div className="mb-3">
-              <CalendarIcon className="h-12 w-12 mx-auto text-gray-400" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Metrics cơ bản */}
+        <div className="space-y-4">
+          <h4 className="font-medium text-gray-900 border-b pb-2">
+            Chỉ số cơ bản
+          </h4>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Calo tiêu thụ
+            </label>
+            <input
+              type="number"
+              className="w-full border rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="350"
+              value={formData.calories_burned}
+              onChange={(e) =>
+                handleInputChange("calories_burned", e.target.value)
+              }
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Cân nặng hiện tại (kg)
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              className="w-full border rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="70.5"
+              value={formData.current_weight}
+              onChange={(e) =>
+                handleInputChange("current_weight", e.target.value)
+              }
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Thời gian tập (phút)
+            </label>
+            <input
+              type="number"
+              className="w-full border rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="60"
+              value={formData.workout_duration_minutes}
+              onChange={(e) =>
+                handleInputChange("workout_duration_minutes", e.target.value)
+              }
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Mức độ hoàn thành (%)
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              className="w-full border rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="85"
+              value={formData.completion_percentage}
+              onChange={(e) =>
+                handleInputChange("completion_percentage", e.target.value)
+              }
+            />
+          </div>
+        </div>
+
+        {/* Chỉ số sức khỏe */}
+        <div className="space-y-4">
+          <h4 className="font-medium text-gray-900 border-b pb-2">
+            Chỉ số sức khỏe
+          </h4>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              BMI
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              className="w-full border rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="22.5"
+              value={formData.bmi}
+              onChange={(e) => handleInputChange("bmi", e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nhịp tim trung bình
+            </label>
+            <input
+              type="number"
+              className="w-full border rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="140"
+              value={formData.heart_rate_avg}
+              onChange={(e) =>
+                handleInputChange("heart_rate_avg", e.target.value)
+              }
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nhịp tim tối đa
+            </label>
+            <input
+              type="number"
+              className="w-full border rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="170"
+              value={formData.heart_rate_max}
+              onChange={(e) =>
+                handleInputChange("heart_rate_max", e.target.value)
+              }
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Đánh giá khách hàng (1-5 sao)
+            </label>
+            <div className="mt-2">
+              <StarRating
+                rating={formData.trainer_rating}
+                onRatingChange={(rating) =>
+                  handleInputChange("trainer_rating", rating)
+                }
+              />
             </div>
-            <h3 className="text-lg font-medium text-gray-900">
-              Không có lịch hẹn nào
-            </h3>
-            <p className="text-gray-500 mt-1">
-              Không tìm thấy lịch hẹn nào phù hợp với bộ lọc hiện tại
+          </div>
+        </div>
+      </div>
+
+      {/* Ghi chú chi tiết */}
+      <div className="mt-6 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Ghi chú hiệu suất
+          </label>
+          <textarea
+            className="w-full border rounded-lg px-3 py-2 min-h-[80px] focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Khách hàng thực hiện tốt các bài tập..."
+            value={formData.performance_notes}
+            onChange={(e) =>
+              handleInputChange("performance_notes", e.target.value)
+            }
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Bài tập đã hoàn thành
+          </label>
+          <textarea
+            className="w-full border rounded-lg px-3 py-2 min-h-[80px] focus:ring-blue-500 focus:border-blue-500"
+            placeholder="- Squat: 3x12 ✓\n- Push-up: 3x10 ✓\n- Plank: 3x30s ✓"
+            value={formData.exercises_completed}
+            onChange={(e) =>
+              handleInputChange("exercises_completed", e.target.value)
+            }
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Phản hồi của PT
+          </label>
+          <textarea
+            className="w-full border rounded-lg px-3 py-2 min-h-[80px] focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Khách hàng cần cải thiện về..."
+            value={formData.trainer_feedback}
+            onChange={(e) =>
+              handleInputChange("trainer_feedback", e.target.value)
+            }
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Gợi ý cho buổi tập tiếp theo
+          </label>
+          <textarea
+            className="w-full border rounded-lg px-3 py-2 min-h-[80px] focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Tăng cường bài tập cơ core..."
+            value={formData.next_session_recommendations}
+            onChange={(e) =>
+              handleInputChange("next_session_recommendations", e.target.value)
+            }
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end space-x-3 pt-6 mt-6 border-t">
+        <button
+          className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+          onClick={onClose}
+          disabled={isSubmitting}
+        >
+          Hủy
+        </button>
+        <button
+          className="px-6 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "Đang lưu..." : "Lưu kết quả"}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default function PTScheduleComponent() {
+  const [schedules, setSchedules] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterType, setFilterType] = useState("all");
+
+  // Modal states
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showExerciseModal, setShowExerciseModal] = useState(false);
+  const [showWorkoutResultModal, setShowWorkoutResultModal] = useState(false);
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+
+  // Form states
+  const [exercises, setExercises] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [confirmationAction, setConfirmationAction] = useState({
+    type: null,
+    data: null,
+  });
+
+  const { user, isLoggedIn } = useContext(AuthContext);
+
+  useEffect(() => {
+    if (isLoggedIn && user) {
+      fetchData();
+    }
+  }, [isLoggedIn, user]);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const token = localStorage.getItem("userToken");
+      if (!token) {
+        setError("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+        return;
+      }
+
+      const response = await axios.get(
+        "http://localhost:3000/appointments/trainer/me",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.data && response.data.data) {
+        const transformedData = response.data.data.map((appointment) => ({
+          id: appointment.id,
+          date: appointment.date
+            ? appointment.date.split("T")[0]
+            : new Date().toISOString().split("T")[0],
+          timeStart: appointment.timeSlot?.startTime || "00:00",
+          timeEnd: appointment.timeSlot?.endTime || "00:00",
+          customer: {
+            id: appointment.user?.id || "unknown",
+            name:
+              appointment.user?.full_name ||
+              appointment.user?.fullName ||
+              appointment.user?.username ||
+              "Khách hàng không xác định",
+            phone: appointment.user?.phone || "Chưa có thông tin",
+            email: appointment.user?.email || "Chưa có thông tin",
+            avatar: appointment.user?.profileImage || null,
+          },
+          location: appointment.location || "Phòng tập chính",
+          status: appointment.status,
+          notes: appointment.notes || "",
+          exercises: appointment.exercises || "",
+          rating: appointment.rating?.rating || null,
+          ratingComment: appointment.rating?.comment || "",
+          workoutResult: appointment.workoutResult || null,
+          createdAt: appointment.created_at || new Date().toISOString(),
+        }));
+
+        setSchedules(transformedData);
+      } else {
+        setSchedules([]);
+      }
+    } catch (error) {
+      console.error("Lỗi khi tải dữ liệu lịch tập:", error);
+
+      if (error.response) {
+        if (error.response.status === 401 || error.response.status === 403) {
+          setError(
+            "Bạn không có quyền xem dữ liệu này. Vui lòng đăng nhập lại."
+          );
+        } else if (error.response.status === 404) {
+          setError(
+            "Không tìm thấy dữ liệu. Vui lòng kiểm tra cấu hình hệ thống."
+          );
+        } else {
+          setError(
+            `Lỗi từ máy chủ: ${
+              error.response.data?.message || "Vui lòng thử lại sau"
+            }`
+          );
+        }
+      } else if (error.request) {
+        setError(
+          "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng."
+        );
+      } else {
+        setError("Lỗi khi tải dữ liệu: " + error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper functions
+  const getWeekDates = () => {
+    const dates = [];
+    const startOfWeek = new Date(selectedDate);
+    const day = startOfWeek.getDay();
+    startOfWeek.setDate(startOfWeek.getDate() - day);
+
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(startOfWeek);
+      date.setDate(date.getDate() + i);
+      dates.push(date);
+    }
+
+    return dates;
+  };
+
+  const hasSchedulesOnDate = (date) => {
+    const dateString = date.toISOString().split("T")[0];
+    return schedules.some(
+      (schedule) =>
+        schedule.date === dateString && schedule.status !== "CANCELLED"
+    );
+  };
+
+  const getScheduleInfoOnDate = (date) => {
+    const dateString = date.toISOString().split("T")[0];
+    const daySchedules = schedules.filter(
+      (schedule) =>
+        schedule.date === dateString && schedule.status !== "CANCELLED"
+    );
+
+    const statusCounts = {
+      confirmed: daySchedules.filter((s) => s.status === "CONFIRMED").length,
+      pending: daySchedules.filter((s) => s.status === "PENDING").length,
+      completed: daySchedules.filter((s) => s.status === "COMPLETED").length,
+    };
+
+    return {
+      total: daySchedules.length,
+      statusCounts,
+      hasConfirmed: statusCounts.confirmed > 0,
+      hasPending: statusCounts.pending > 0,
+      hasCompleted: statusCounts.completed > 0,
+      schedules: daySchedules,
+    };
+  };
+
+  const navigateWeek = (direction) => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + direction * 7);
+    setSelectedDate(newDate);
+  };
+
+  const handleDateSelect = (date) => {
+    setSelectedDate(date);
+
+    const hasSchedules = hasSchedulesOnDate(date);
+    if (hasSchedules) {
+      setTimeout(() => {
+        const scheduleSection = document.querySelector("#schedule-section");
+        if (scheduleSection) {
+          scheduleSection.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        }
+      }, 100);
+    }
+  };
+
+  const getFilteredSchedules = () => {
+    return schedules.filter((schedule) => {
+      const matchesFilter =
+        filterType === "all" || schedule.status === filterType;
+
+      const matchesSearch =
+        searchTerm === "" ||
+        schedule.customer.name
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        schedule.location.toLowerCase().includes(searchTerm.toLowerCase());
+
+      return matchesFilter && matchesSearch;
+    });
+  };
+
+  const getTodaySchedules = () => {
+    const today = new Date().toISOString().split("T")[0];
+    return schedules.filter(
+      (schedule) =>
+        schedule.date === today &&
+        (schedule.status === "CONFIRMED" || schedule.status === "PENDING")
+    );
+  };
+
+  const getUpcomingSchedules = () => {
+    const today = new Date().toISOString().split("T")[0];
+    return schedules
+      .filter(
+        (schedule) => schedule.date > today && schedule.status !== "CANCELLED"
+      )
+      .sort(
+        (a, b) =>
+          new Date(`${a.date}T${a.timeStart}`) -
+          new Date(`${b.date}T${b.timeStart}`)
+      );
+  };
+
+  const getPendingSchedules = () => {
+    return schedules.filter((schedule) => schedule.status === "PENDING");
+  };
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case "CONFIRMED":
+        return (
+          <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+            Đã xác nhận
+          </span>
+        );
+      case "PENDING":
+        return (
+          <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
+            Chờ xác nhận
+          </span>
+        );
+      case "COMPLETED":
+        return (
+          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+            Hoàn thành
+          </span>
+        );
+      case "CANCELLED":
+        return (
+          <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
+            Đã hủy
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const handleChangeStatus = async (bookingId, newStatus) => {
+    try {
+      const token = localStorage.getItem("userToken");
+      if (!token) {
+        toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+        return;
+      }
+
+      let endpoint = "";
+      let method = "patch";
+
+      switch (newStatus) {
+        case "CONFIRMED":
+          endpoint = `http://localhost:3000/appointments/${bookingId}/confirm`;
+          break;
+        case "CANCELLED":
+          endpoint = `http://localhost:3000/appointments/${bookingId}/cancel`;
+          break;
+        case "COMPLETED":
+          endpoint = `http://localhost:3000/appointments/${bookingId}/complete`;
+          break;
+        default:
+          throw new Error("Trạng thái không hợp lệ");
+      }
+
+      const response = await axios[method](
+        endpoint,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.data && response.data.status === "SUCCESS") {
+        setSchedules(
+          schedules.map((schedule) =>
+            schedule.id === bookingId
+              ? { ...schedule, status: newStatus }
+              : schedule
+          )
+        );
+
+        toast.success(
+          `Đã ${
+            newStatus === "CONFIRMED"
+              ? "xác nhận"
+              : newStatus === "CANCELLED"
+              ? "hủy"
+              : "hoàn thành"
+          } lịch tập!`
+        );
+        setShowDetailsModal(false);
+        setShowConfirmationModal(false);
+      } else {
+        throw new Error("Cập nhật trạng thái không thành công");
+      }
+    } catch (error) {
+      console.error("Lỗi khi cập nhật trạng thái:", error);
+
+      if (error.response) {
+        if (error.response.status === 401 || error.response.status === 403) {
+          toast.error("Bạn không có quyền thực hiện hành động này.");
+        } else if (error.response.status === 404) {
+          toast.error("Không tìm thấy lịch tập.");
+        } else {
+          toast.error(
+            `Lỗi từ máy chủ: ${
+              error.response.data?.message || "Vui lòng thử lại sau"
+            }`
+          );
+        }
+      } else {
+        toast.error("Lỗi khi cập nhật trạng thái: " + error.message);
+      }
+    }
+  };
+
+  const confirmStatusChange = (bookingId, newStatus) => {
+    setConfirmationAction({ type: newStatus, data: { bookingId, newStatus } });
+    setShowConfirmationModal(true);
+  };
+
+  const handleSaveExercises = async () => {
+    if (!exercises.trim()) {
+      toast.warning("Vui lòng nhập nội dung bài tập");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const token = localStorage.getItem("userToken");
+      if (!token) {
+        toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+        return;
+      }
+
+      const response = await axios.patch(
+        `http://localhost:3000/appointments/${selectedBooking.id}/exercises`,
+        { exercises },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.data && response.data.status === "SUCCESS") {
+        setSchedules(
+          schedules.map((schedule) =>
+            schedule.id === selectedBooking.id
+              ? { ...schedule, exercises }
+              : schedule
+          )
+        );
+
+        toast.success("Đã lưu bài tập thành công!");
+        setShowExerciseModal(false);
+        setExercises("");
+      } else {
+        throw new Error("Lưu bài tập không thành công");
+      }
+    } catch (error) {
+      console.error("Lỗi khi lưu bài tập:", error);
+
+      if (error.response) {
+        if (error.response.status === 401 || error.response.status === 403) {
+          toast.error("Bạn không có quyền chỉnh sửa bài tập này.");
+        } else if (error.response.status === 404) {
+          toast.error("Không tìm thấy lịch tập.");
+        } else {
+          toast.error(
+            `Lỗi từ máy chủ: ${
+              error.response.data?.message || "Vui lòng thử lại sau"
+            }`
+          );
+        }
+      } else {
+        toast.error("Lỗi khi lưu bài tập: " + error.message);
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveWorkoutResult = async (bookingId, workoutResultData) => {
+    try {
+      const token = localStorage.getItem("userToken");
+      if (!token) {
+        toast.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+        return;
+      }
+
+      console.log("Sending workout result data:", {
+        bookingId,
+        workoutResultData,
+      });
+
+      const response = await axios.post(
+        `http://localhost:3000/appointments/${bookingId}/workout-result`,
+        workoutResultData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log("Workout result API Response:", response.data);
+
+      if (response.data) {
+        setSchedules(
+          schedules.map((schedule) =>
+            schedule.id === bookingId
+              ? { ...schedule, workoutResult: workoutResultData }
+              : schedule
+          )
+        );
+
+        toast.success("Đã lưu kết quả buổi tập thành công!");
+      } else {
+        console.error("Empty response from workout result API");
+        throw new Error("Không nhận được phản hồi từ máy chủ");
+      }
+    } catch (error) {
+      console.error("Lỗi khi lưu kết quả buổi tập:", error);
+
+      if (error.response) {
+        if (error.response.status === 401 || error.response.status === 403) {
+          toast.error("Bạn không có quyền ghi kết quả buổi tập này.");
+        } else if (error.response.status === 404) {
+          toast.error("Không tìm thấy lịch tập.");
+        } else {
+          toast.error(
+            `Lỗi từ máy chủ: ${
+              error.response.data?.message || "Vui lòng thử lại sau"
+            }`
+          );
+        }
+      } else {
+        toast.error("Lỗi khi lưu kết quả: " + error.message);
+      }
+      throw error;
+    }
+  };
+
+  const selectBooking = (booking) => {
+    setSelectedBooking(booking);
+    setExercises(booking.exercises || "");
+  };
+
+  // Render booking card function
+  const renderBookingCard = (booking) => (
+    <div
+      key={booking.id}
+      className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200"
+    >
+      <div className="p-6">
+        {/* Header with customer info and status */}
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex items-center space-x-4">
+            <img
+              src={
+                booking.customer.avatar ||
+                "https://randomuser.me/api/portraits/men/32.jpg"
+              }
+              alt={booking.customer.name}
+              className="w-14 h-14 rounded-full object-cover border-2 border-gray-100"
+            />
+            <div>
+              <h3 className="font-semibold text-gray-900 text-lg">
+                {booking.customer.name}
+              </h3>
+              <div className="flex items-center text-sm text-gray-600 mt-1">
+                <Clock className="h-4 w-4 mr-1" />
+                <span>
+                  {booking.timeStart} - {booking.timeEnd}
+                </span>
+                <MapPin className="h-4 w-4 ml-3 mr-1" />
+                <span>{booking.location}</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col items-end space-y-2">
+            {getStatusBadge(booking.status)}
+            <div className="flex items-center space-x-1">
+              <MoreHorizontal className="h-4 w-4 text-gray-400" />
+            </div>
+          </div>
+        </div>
+
+        {/* Contact info */}
+        <div className="flex items-center space-x-4 mb-4 text-sm text-gray-600">
+          <div className="flex items-center">
+            <Phone className="h-4 w-4 mr-1" />
+            <span>{booking.customer.phone}</span>
+          </div>
+          <div className="flex items-center">
+            <Mail className="h-4 w-4 mr-1" />
+            <span>{booking.customer.email}</span>
+          </div>
+        </div>
+
+        {/* Notes */}
+        {booking.notes && (
+          <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+            <p className="text-sm text-gray-700">
+              <strong>Ghi chú:</strong> {booking.notes}
             </p>
           </div>
         )}
+
+        {/* Workout result summary */}
+        {booking.workoutResult && (
+          <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
+            <h4 className="font-medium text-green-900 mb-2 flex items-center">
+              <Activity className="h-4 w-4 mr-2" />
+              Kết quả buổi tập
+            </h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {booking.workoutResult.calories_burned && (
+                <div className="text-center">
+                  <div className="flex items-center justify-center mb-1">
+                    <Target className="h-4 w-4 text-orange-500 mr-1" />
+                    <span className="text-xs text-gray-600">Calo</span>
+                  </div>
+                  <p className="font-semibold text-gray-900">
+                    {booking.workoutResult.calories_burned}
+                  </p>
+                </div>
+              )}
+              {booking.workoutResult.current_weight && (
+                <div className="text-center">
+                  <div className="flex items-center justify-center mb-1">
+                    <TrendingUp className="h-4 w-4 text-blue-500 mr-1" />
+                    <span className="text-xs text-gray-600">Cân nặng</span>
+                  </div>
+                  <p className="font-semibold text-gray-900">
+                    {booking.workoutResult.current_weight} kg
+                  </p>
+                </div>
+              )}
+              {booking.workoutResult.completion_percentage && (
+                <div className="text-center">
+                  <div className="flex items-center justify-center mb-1">
+                    <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
+                    <span className="text-xs text-gray-600">Hoàn thành</span>
+                  </div>
+                  <p className="font-semibold text-gray-900">
+                    {booking.workoutResult.completion_percentage}%
+                  </p>
+                </div>
+              )}
+              {booking.workoutResult.heart_rate_avg && (
+                <div className="text-center">
+                  <div className="flex items-center justify-center mb-1">
+                    <Heart className="h-4 w-4 text-red-500 mr-1" />
+                    <span className="text-xs text-gray-600">Nhịp tim</span>
+                  </div>
+                  <p className="font-semibold text-gray-900">
+                    {booking.workoutResult.heart_rate_avg} bpm
+                  </p>
+                </div>
+              )}
+            </div>
+            {booking.workoutResult.trainer_rating && (
+              <div className="mt-3 pt-3 border-t border-green-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">
+                    Đánh giá hiệu suất:
+                  </span>
+                  <StarRating
+                    rating={booking.workoutResult.trainer_rating}
+                    readonly
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Member rating */}
+        {booking.rating && (
+          <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">
+                Đánh giá từ hội viên:
+              </span>
+              <StarRating rating={booking.rating} readonly />
+            </div>
+            {booking.ratingComment && (
+              <p className="text-sm text-gray-600 mt-2 italic">
+                "{booking.ratingComment}"
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100">
+          {booking.status === "PENDING" && (
+            <>
+              <button
+                onClick={() => confirmStatusChange(booking.id, "CONFIRMED")}
+                className="flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+              >
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Xác nhận
+              </button>
+              <button
+                onClick={() => confirmStatusChange(booking.id, "CANCELLED")}
+                className="flex items-center px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+              >
+                <XCircle className="h-4 w-4 mr-1" />
+                Hủy
+              </button>
+            </>
+          )}
+
+          {booking.status === "CONFIRMED" && (
+            <>
+              <button
+                onClick={() => confirmStatusChange(booking.id, "COMPLETED")}
+                className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+              >
+                <CheckCircle className="h-4 w-4 mr-1" />
+                Hoàn thành
+              </button>
+              <button
+                onClick={() => {
+                  selectBooking(booking);
+                  setShowExerciseModal(true);
+                }}
+                className="flex items-center px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
+              >
+                <Dumbbell className="h-4 w-4 mr-1" />
+                {booking.exercises ? "Sửa bài tập" : "Thêm bài tập"}
+              </button>
+            </>
+          )}
+
+          {booking.status === "COMPLETED" && (
+            <button
+              onClick={() => {
+                selectBooking(booking);
+                setShowWorkoutResultModal(true);
+              }}
+              className="flex items-center px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
+            >
+              <BarChart3 className="h-4 w-4 mr-1" />
+              {booking.workoutResult ? "Sửa kết quả" : "Ghi kết quả"}
+            </button>
+          )}
+
+          <button
+            onClick={() => {
+              selectBooking(booking);
+              setShowDetailsModal(true);
+            }}
+            className="flex items-center px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
+          >
+            <Eye className="h-4 w-4 mr-1" />
+            Chi tiết
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Render modals
+  const renderRatingModal = () => {
+    if (!showRatingModal || !selectedBookingForRating) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg w-full max-w-md mx-4">
+          <RatingForm
+            booking={selectedBookingForRating}
+            onClose={() => {
+              setShowRatingModal(false);
+              setSelectedBookingForRating(null);
+            }}
+            onSave={handleSaveRating}
+          />
+        </div>
       </div>
     );
   };
 
-  return (
-    <div className="bg-gray-50 min-h-screen pb-12">
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-gray-900">
-              Quản lý lịch tập
-            </h1>
-            <div className="flex items-center space-x-4">
-              <div className="relative">
-                <Bell className="h-6 w-6 text-gray-400 hover:text-gray-600 cursor-pointer" />
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white w-4 h-4 rounded-full text-xs flex items-center justify-center">
-                  3
-                </span>
-              </div>
-              <div className="flex items-center">
-                <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium mr-2">
-                  PT
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-900">
-                    Huấn luyện viên
-                  </div>
-                  <div className="text-xs text-gray-500">Đang online</div>
-                </div>
-              </div>
-            </div>
-          </div>
+  const renderWorkoutResultModal = () => {
+    if (!showWorkoutResultModal || !selectedBookingForWorkoutResult)
+      return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden">
+          <WorkoutResultForm
+            booking={selectedBookingForWorkoutResult}
+            onClose={() => {
+              setShowWorkoutResultModal(false);
+              setSelectedBookingForWorkoutResult(null);
+            }}
+            onSave={handleSaveWorkoutResult}
+          />
         </div>
-      </header>
+      </div>
+    );
+  };
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Dashboard Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-          <div className="bg-white rounded-lg shadow p-5 border border-gray-200">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 h-12 w-12 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center">
-                <CalendarIcon className="h-6 w-6" />
-              </div>
-              <div className="ml-4">
-                <h2 className="text-sm font-medium text-gray-500">
-                  Tổng số buổi tập
-                </h2>
-                <div className="text-2xl font-semibold text-gray-900">
-                  {dashboardStats.totalBookings}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-5 border border-gray-200">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 h-12 w-12 bg-yellow-100 text-yellow-600 rounded-lg flex items-center justify-center">
-                <HelpCircle className="h-6 w-6" />
-              </div>
-              <div className="ml-4">
-                <h2 className="text-sm font-medium text-gray-500">
-                  Chờ xác nhận
-                </h2>
-                <div className="text-2xl font-semibold text-gray-900">
-                  {dashboardStats.pendingBookings}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-5 border border-gray-200">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 h-12 w-12 bg-green-100 text-green-600 rounded-lg flex items-center justify-center">
-                <Clock className="h-6 w-6" />
-              </div>
-              <div className="ml-4">
-                <h2 className="text-sm font-medium text-gray-500">
-                  Lịch hôm nay
-                </h2>
-                <div className="text-2xl font-semibold text-gray-900">
-                  {dashboardStats.todayBookings}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-5 border border-gray-200">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 h-12 w-12 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center">
-                <CheckCircle className="h-6 w-6" />
-              </div>
-              <div className="ml-4">
-                <h2 className="text-sm font-medium text-gray-500">
-                  Đã hoàn thành
-                </h2>
-                <div className="text-2xl font-semibold text-gray-900">
-                  {dashboardStats.completedBookings}
-                </div>
-              </div>
-            </div>
-          </div>
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="p-6 max-w-sm bg-white rounded-lg shadow-md">
+          <h2 className="text-lg font-medium text-red-600 mb-2">{error}</h2>
+          <p className="text-gray-600 mb-4">
+            Vui lòng đăng nhập để xem lịch tập của bạn.
+          </p>
+          <button
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            onClick={() => (window.location.href = "/login")}
+          >
+            Đăng nhập
+          </button>
         </div>
+      </div>
+    );
+  }
 
-        {/* Calendar Controls */}
-        <div className="bg-white rounded-lg shadow-sm mb-6 p-4 flex flex-wrap items-center justify-between gap-4 border">
-          <div className="flex items-center">
-            <button
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              onClick={() => {
-                const newDate = new Date(date);
-                if (view === "month") {
-                  newDate.setMonth(newDate.getMonth() - 1);
-                } else if (view === "week") {
-                  newDate.setDate(newDate.getDate() - 7);
-                } else {
-                  newDate.setDate(newDate.getDate() - 1);
-                }
-                setDate(newDate);
-              }}
-            >
-              <ChevronLeft className="h-5 w-5 text-gray-600" />
-            </button>
-
-            <h2 className="text-lg font-medium text-gray-900 mx-4 min-w-[200px] text-center">
-              {formatHeaderDate(date)}
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full mx-4">
+          <div className="text-center">
+            <XCircle className="h-16 w-16 text-red-400 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Lỗi truy cập
             </h2>
-
-            <button
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              onClick={() => {
-                const newDate = new Date(date);
-                if (view === "month") {
-                  newDate.setMonth(newDate.getMonth() + 1);
-                } else if (view === "week") {
-                  newDate.setDate(newDate.getDate() + 7);
-                } else {
-                  newDate.setDate(newDate.getDate() + 1);
-                }
-                setDate(newDate);
-              }}
-            >
-              <ChevronRight className="h-5 w-5 text-gray-600" />
-            </button>
-
-            <button
-              className="ml-4 px-3 py-1 text-sm font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100"
-              onClick={() => setDate(new Date())}
-            >
-              Hôm nay
-            </button>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center border rounded-lg overflow-hidden">
+            <p className="text-gray-600 mb-6">{error}</p>
+            <div className="flex space-x-3 justify-center">
               <button
-                className={`p-2 ${
-                  view === "month"
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-gray-700 hover:bg-gray-50"
-                }`}
-                onClick={() => handleViewChange("month")}
+                onClick={() => window.location.reload()}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
               >
-                <span className="sr-only">Tháng</span>
-                <Grid className="h-5 w-5" />
+                Thử lại
               </button>
-
               <button
-                className={`p-2 ${
-                  view === "week"
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-gray-700 hover:bg-gray-50"
-                }`}
-                onClick={() => handleViewChange("week")}
+                onClick={() => (window.location.href = "/login")}
+                className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition-colors"
               >
-                <span className="sr-only">Tuần</span>
-                <CalendarIcon className="h-5 w-5" />
+                Đăng nhập lại
               </button>
-
-              <button
-                className={`p-2 ${
-                  view === "day"
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-gray-700 hover:bg-gray-50"
-                }`}
-                onClick={() => handleViewChange("day")}
-              >
-                <span className="sr-only">Ngày</span>
-                <Clock className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="flex items-center border rounded-lg overflow-hidden">
-              <button
-                className={`p-2 ${
-                  displayMode === "calendar"
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-gray-700 hover:bg-gray-50"
-                }`}
-                onClick={() => setDisplayMode("calendar")}
-              >
-                <span className="sr-only">Lịch</span>
-                <CalendarIcon className="h-5 w-5" />
-              </button>
-
-              <button
-                className={`p-2 ${
-                  displayMode === "list"
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-gray-700 hover:bg-gray-50"
-                }`}
-                onClick={() => setDisplayMode("list")}
-              >
-                <span className="sr-only">Danh sách</span>
-                <List className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="relative">
-              <div className="flex items-center px-3 py-2 border rounded-lg">
-                <Filter className="h-4 w-4 text-gray-400 mr-2" />
-                <select
-                  className="text-sm bg-transparent text-gray-700 focus:outline-none"
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                >
-                  <option value="all">Tất cả</option>
-                  <option value="schedule">Chỉ ca làm việc</option>
-                  <option value="CONFIRMED">Đã xác nhận</option>
-                  <option value="PENDING">Chờ xác nhận</option>
-                  <option value="COMPLETED">Hoàn thành</option>
-                  <option value="CANCELLED">Đã hủy</option>
-                </select>
-              </div>
             </div>
           </div>
         </div>
+      </div>
+    );
+  }
 
-        {/* Calendar or List View */}
-        <div className="bg-white rounded-lg shadow-sm p-4 border">
-          {loading ? (
-            <div className="py-20 flex justify-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
-          ) : displayMode === "calendar" ? (
-            <Calendar
-              localizer={localizer}
-              events={filteredEvents}
-              startAccessor="start"
-              endAccessor="end"
-              style={{ height: 800 }}
-              views={["month", "week", "day"]}
-              view={view}
-              date={date}
-              onNavigate={setDate}
-              onView={setView}
-              eventPropGetter={eventStyleGetter}
-              onSelectEvent={handleSelectEvent}
-              dayPropGetter={(date) => {
-                const today = new Date();
-                if (
-                  date.getDate() === today.getDate() &&
-                  date.getMonth() === today.getMonth() &&
-                  date.getFullYear() === today.getFullYear()
-                ) {
-                  return { className: "bg-blue-50" };
-                }
-                return {};
-              }}
-              messages={{
-                month: "Tháng",
-                week: "Tuần",
-                day: "Ngày",
-                today: "Hôm nay",
-                next: "Sau",
-                previous: "Trước",
-                agenda: "Lịch trình",
-                showMore: (total) => `+ ${total} buổi tập khác`,
-              }}
-            />
-          ) : (
-            renderBookingsList()
-          )}
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <h1 className="text-xl font-semibold text-gray-900">
+              Quản lý lịch tập - PT
+            </h1>
+          </div>
         </div>
-      </main>
+      </div>
 
-      {/* Event Detail Modal */}
-      {isModalOpen && selectedEvent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="text-xl font-semibold text-gray-900">
-                  {selectedEvent.type === "booking"
-                    ? "Chi tiết lịch hẹn"
-                    : "Chi tiết ca làm việc"}
-                </h3>
-                <button
-                  className="text-gray-400 hover:text-gray-500"
-                  onClick={() => {
-                    setSelectedEvent(null);
-                    setIsModalOpen(false);
-                  }}
-                >
-                  <svg
-                    className="h-6 w-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M6 18L18 6M6 6l12 12"
-                    />
-                  </svg>
-                </button>
-              </div>
-
-              {selectedEvent.type === "booking" ? (
-                <div>
-                  <div className="mb-6">
-                    <div
-                      className={`
-                      inline-block px-3 py-1 rounded-full text-sm font-medium mb-2
-                      ${
-                        selectedEvent.booking.status === "CONFIRMED"
-                          ? "bg-green-100 text-green-800"
-                          : ""
-                      }
-                      ${
-                        selectedEvent.booking.status === "PENDING"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : ""
-                      }
-                      ${
-                        selectedEvent.booking.status === "COMPLETED"
-                          ? "bg-purple-100 text-purple-800"
-                          : ""
-                      }
-                      ${
-                        selectedEvent.booking.status === "CANCELLED"
-                          ? "bg-red-100 text-red-800"
-                          : ""
-                      }
-                    `}
-                    >
-                      {selectedEvent.booking.status === "CONFIRMED" &&
-                        "Đã xác nhận"}
-                      {selectedEvent.booking.status === "PENDING" &&
-                        "Chờ xác nhận"}
-                      {selectedEvent.booking.status === "COMPLETED" &&
-                        "Hoàn thành"}
-                      {selectedEvent.booking.status === "CANCELLED" && "Đã hủy"}
-                    </div>
-
-                    <h4 className="font-medium text-lg text-gray-900">
-                      Buổi tập với {selectedEvent.booking.customerName}
-                    </h4>
-
-                    <div className="mt-2 text-gray-700">
-                      <div className="flex items-center">
-                        <CalendarIcon className="h-5 w-5 text-gray-500 mr-2" />
-                        <span>
-                          {moment(selectedEvent.booking.date).format(
-                            "dddd, DD/MM/YYYY"
-                          )}
-                        </span>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Sidebar */}
+          <div className="lg:col-span-3">
+            <div className="space-y-6">
+              {/* Thông tin nhanh */}
+              <div className="bg-white rounded-lg shadow p-5">
+                <h2 className="text-lg font-medium text-gray-900 mb-4">
+                  Tổng quan
+                </h2>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                        <Calendar className="h-4 w-4 text-blue-600" />
                       </div>
-
-                      <div className="flex items-center mt-1">
-                        <Clock className="h-5 w-5 text-gray-500 mr-2" />
-                        <span>
-                          {selectedEvent.booking.startTime.substring(0, 5)} -{" "}
-                          {selectedEvent.booking.endTime.substring(0, 5)}
-                        </span>
-                      </div>
+                      <span className="text-gray-600">Hôm nay</span>
                     </div>
+                    <span className="font-semibold">
+                      {getTodaySchedules().length} buổi tập
+                    </span>
                   </div>
 
-                  <div className="bg-gray-50 p-4 rounded-lg mb-6">
-                    <h5 className="font-medium text-gray-900 mb-2">
-                      Thông tin khách hàng
-                    </h5>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center mr-3">
+                        <Clock className="h-4 w-4 text-yellow-600" />
+                      </div>
+                      <span className="text-gray-600">Chờ xác nhận</span>
+                    </div>
+                    <span className="font-semibold">
+                      {getPendingSchedules().length} buổi
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center mr-3">
+                        <CalendarDays className="h-4 w-4 text-green-600" />
+                      </div>
+                      <span className="text-gray-600">Sắp tới</span>
+                    </div>
+                    <span className="font-semibold">
+                      {getUpcomingSchedules().length} buổi tập
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center mr-3">
+                        <Users className="h-4 w-4 text-purple-600" />
+                      </div>
+                      <span className="text-gray-600">Tổng khách hàng</span>
+                    </div>
+                    <span className="font-semibold">
+                      {
+                        new Set(
+                          schedules
+                            .filter((s) => s.status !== "CANCELLED")
+                            .map((s) => s.customer.id)
+                        ).size
+                      }{" "}
+                      người
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Buổi tập hôm nay */}
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="px-5 py-4 border-b">
+                  <h2 className="text-lg font-medium text-gray-900">
+                    Buổi tập hôm nay
+                  </h2>
+                </div>
+                <div className="p-3">
+                  {loading ? (
+                    <div className="py-4 flex justify-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
+                    </div>
+                  ) : getTodaySchedules().length === 0 ? (
+                    <div className="text-center py-6 text-gray-500">
+                      <Calendar className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                      <p>Không có buổi tập nào hôm nay</p>
+                    </div>
+                  ) : (
                     <div className="space-y-2">
-                      <div className="flex items-center">
-                        <Users className="h-4 w-4 text-gray-500 mr-2" />
-                        <span className="text-gray-700">
-                          {selectedEvent.booking.customerName}
-                        </span>
-                      </div>
-                      <div className="flex items-center">
-                        <svg
-                          className="h-4 w-4 text-gray-500 mr-2"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
+                      {getTodaySchedules().map((schedule) => (
+                        <div
+                          key={schedule.id}
+                          className="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg cursor-pointer"
+                          onClick={() => {
+                            setSelectedBooking(schedule);
+                            setShowDetailsModal(true);
+                          }}
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                          />
-                        </svg>
-                        <span className="text-gray-700">
-                          {selectedEvent.booking.customerPhone}
-                        </span>
-                      </div>
-                      <div className="flex items-center">
-                        <svg
-                          className="h-4 w-4 text-gray-500 mr-2"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                          />
-                        </svg>
-                        <span className="text-gray-700">
-                          {selectedEvent.booking.customerEmail}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {selectedEvent.booking.notes && (
-                    <div className="mb-6">
-                      <h5 className="font-medium text-gray-900 mb-2">
-                        Ghi chú
-                      </h5>
-                      <p className="text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                        {selectedEvent.booking.notes}
-                      </p>
+                          <div className="flex justify-between items-start mb-2">
+                            <p className="font-medium">
+                              KH: {schedule.customer.name}
+                            </p>
+                            {getStatusBadge(schedule.status)}
+                          </div>
+                          <div className="flex items-center text-sm text-gray-600 mb-1">
+                            <Clock className="h-3.5 w-3.5 mr-1" />
+                            <span>
+                              {schedule.timeStart} - {schedule.timeEnd}
+                            </span>
+                          </div>
+                          <div className="flex items-center text-sm text-gray-600">
+                            <MapPin className="h-3.5 w-3.5 mr-1" />
+                            <span>{schedule.location}</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
-
-                  {selectedEvent.booking.status !== "COMPLETED" &&
-                    selectedEvent.booking.status !== "CANCELLED" && (
-                      <div className="flex space-x-3 mt-4 border-t pt-4">
-                        {selectedEvent.booking.status === "PENDING" && (
-                          <button
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-medium transition-colors"
-                            onClick={() =>
-                              handleChangeBookingStatus(
-                                selectedEvent.booking.id,
-                                "CONFIRMED"
-                              )
-                            }
-                          >
-                            Xác nhận
-                          </button>
-                        )}
-
-                        {selectedEvent.booking.status === "CONFIRMED" && (
-                          <button
-                            className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg font-medium transition-colors"
-                            onClick={() =>
-                              handleChangeBookingStatus(
-                                selectedEvent.booking.id,
-                                "COMPLETED"
-                              )
-                            }
-                          >
-                            Đánh dấu hoàn thành
-                          </button>
-                        )}
-
-                        <button
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-medium transition-colors"
-                          onClick={() =>
-                            handleChangeBookingStatus(
-                              selectedEvent.booking.id,
-                              "CANCELLED"
-                            )
-                          }
-                        >
-                          Hủy buổi tập
-                        </button>
-                      </div>
-                    )}
                 </div>
-              ) : (
-                <div>
-                  <div className="mb-6">
-                    <div
-                      className={`
-                      inline-block px-3 py-1 rounded-full text-sm font-medium mb-2
-                      ${
-                        selectedEvent.schedule.isAvailable
-                          ? "bg-blue-100 text-blue-800"
-                          : "bg-red-100 text-red-800"
-                      }
-                    `}
-                    >
-                      {selectedEvent.schedule.isAvailable
-                        ? "Có thể nhận học viên"
-                        : "Không còn nhận học viên"}
+              </div>
+
+              {/* Chờ xác nhận */}
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="px-5 py-4 border-b">
+                  <h2 className="text-lg font-medium text-gray-900">
+                    Chờ xác nhận
+                  </h2>
+                </div>
+                <div className="p-3">
+                  {loading ? (
+                    <div className="py-4 flex justify-center">
+                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
                     </div>
+                  ) : getPendingSchedules().length === 0 ? (
+                    <div className="text-center py-6 text-gray-500">
+                      <CheckCircle className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                      <p>Không có lịch chờ xác nhận</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {getPendingSchedules()
+                        .slice(0, 3)
+                        .map((schedule) => (
+                          <div
+                            key={schedule.id}
+                            className="p-3 bg-yellow-50 hover:bg-yellow-100 rounded-lg cursor-pointer border border-yellow-200"
+                            onClick={() => {
+                              setSelectedBooking(schedule);
+                              setShowDetailsModal(true);
+                            }}
+                          >
+                            <div className="text-xs text-gray-500 mb-1">
+                              {moment(schedule.date).format("dddd, DD/MM")}
+                            </div>
+                            <p className="font-medium mb-1">
+                              KH: {schedule.customer.name}
+                            </p>
+                            <div className="flex items-center text-sm text-gray-600">
+                              <Clock className="h-3.5 w-3.5 mr-1" />
+                              <span>
+                                {schedule.timeStart} - {schedule.timeEnd}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
 
-                    <h4 className="font-medium text-lg text-gray-900">
-                      Ca làm việc
-                    </h4>
+                      {getPendingSchedules().length > 3 && (
+                        <div className="text-center pt-2">
+                          <button className="text-yellow-600 text-sm hover:text-yellow-800">
+                            Xem thêm {getPendingSchedules().length - 3} lịch tập
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
 
-                    <div className="mt-2 text-gray-700">
-                      <div className="flex items-center">
-                        <CalendarIcon className="h-5 w-5 text-gray-500 mr-2" />
-                        <span>
-                          {moment(selectedEvent.schedule.date).format(
-                            "dddd, DD/MM/YYYY"
-                          )}
-                        </span>
+          {/* Main content */}
+          <div className="lg:col-span-9">
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              {/* Date navigation */}
+              <div className="px-6 py-4 flex justify-between items-center border-b">
+                <div className="flex items-center space-x-4">
+                  <button
+                    className="p-1.5 rounded-full hover:bg-gray-100"
+                    onClick={() => navigateWeek(-1)}
+                  >
+                    <ChevronLeft className="h-5 w-5 text-gray-600" />
+                  </button>
+
+                  <h2 className="text-lg font-medium">
+                    {moment(getWeekDates()[0]).format("DD/MM")} -{" "}
+                    {moment(getWeekDates()[6]).format("DD/MM/YYYY")}
+                  </h2>
+
+                  <button
+                    className="p-1.5 rounded-full hover:bg-gray-100"
+                    onClick={() => navigateWeek(1)}
+                  >
+                    <ChevronRight className="h-5 w-5 text-gray-600" />
+                  </button>
+
+                  <button
+                    className="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                    onClick={() => setSelectedDate(new Date())}
+                  >
+                    Hôm nay
+                  </button>
+
+                  {/* Legend cho highlighting */}
+                  <div className="flex items-center space-x-4 ml-4 text-sm">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-blue-500 mr-1"></div>
+                      <span className="text-gray-600">Hôm nay</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-green-500 mr-1"></div>
+                      <span className="text-gray-600">Đã xác nhận</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-yellow-500 mr-1"></div>
+                      <span className="text-gray-600">Chờ xác nhận</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-blue-500 mr-1"></div>
+                      <span className="text-gray-600">Hoàn thành</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Tìm khách hàng hoặc địa điểm..."
+                      className="pl-9 pr-4 py-2 border rounded-lg text-sm w-48"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                  </div>
+
+                  <div className="relative">
+                    <select
+                      className="pl-9 pr-4 py-2 border rounded-lg text-sm appearance-none bg-white"
+                      value={filterType}
+                      onChange={(e) => setFilterType(e.target.value)}
+                    >
+                      <option value="all">Tất cả</option>
+                      <option value="PENDING">Chờ xác nhận</option>
+                      <option value="CONFIRMED">Đã xác nhận</option>
+                      <option value="COMPLETED">Hoàn thành</option>
+                      <option value="CANCELLED">Đã hủy</option>
+                    </select>
+                    <Filter className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Week view */}
+              <div className="grid grid-cols-7 border-b">
+                {getWeekDates().map((date, index) => {
+                  const isToday =
+                    new Date().toDateString() === date.toDateString();
+                  const isSelected =
+                    selectedDate.toDateString() === date.toDateString();
+                  const hasSchedules = hasSchedulesOnDate(date);
+                  const scheduleInfo = getScheduleInfoOnDate(date);
+
+                  return (
+                    <div
+                      key={index}
+                      className={`text-center py-3 border-r last:border-r-0 cursor-pointer relative
+                        ${isToday ? "bg-blue-50" : ""} 
+                        ${isSelected ? "border-t-2 border-t-blue-500" : ""}
+                        ${hasSchedules ? "bg-green-50" : ""}
+                        hover:bg-gray-100 transition-colors duration-200`}
+                      onClick={() => handleDateSelect(date)}
+                    >
+                      <div className="text-xs text-gray-500">
+                        {moment(date).format("dd").toUpperCase()}
+                      </div>
+                      <div
+                        className={`text-lg font-medium ${
+                          isToday ? "text-blue-600" : ""
+                        } ${hasSchedules && !isToday ? "text-green-600" : ""}`}
+                      >
+                        {date.getDate()}
                       </div>
 
-                      <div className="flex items-center mt-1">
-                        <Clock className="h-5 w-5 text-gray-500 mr-2" />
-                        <span>
-                          {selectedEvent.schedule.startTime.substring(0, 5)} -{" "}
-                          {selectedEvent.schedule.endTime.substring(0, 5)}
-                        </span>
+                      {/* Hiển thị indicator cho ngày có lịch tập */}
+                      {hasSchedules && (
+                        <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2">
+                          <div className="flex items-center justify-center space-x-1">
+                            {/* Hiển thị dots cho các trạng thái khác nhau */}
+                            {scheduleInfo.hasConfirmed && (
+                              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                            )}
+                            {scheduleInfo.hasPending && (
+                              <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                            )}
+                            {scheduleInfo.hasCompleted && (
+                              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                            )}
+
+                            {/* Hiển thị số lượng nếu có nhiều hơn 1 */}
+                            {scheduleInfo.total > 1 && (
+                              <span className="text-xs font-medium text-gray-600 ml-1">
+                                {scheduleInfo.total}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Schedule for selected date */}
+              <div className="p-6" id="schedule-section">
+                <h3 className="text-lg font-medium mb-4">
+                  Lịch tập ngày {moment(selectedDate).format("DD/MM/YYYY")}
+                </h3>
+
+                {loading ? (
+                  <div className="py-16 flex justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                  </div>
+                ) : getFilteredSchedules().filter(
+                    (schedule) =>
+                      schedule.date === selectedDate.toISOString().split("T")[0]
+                  ).length === 0 ? (
+                  <div className="text-center py-16 text-gray-500">
+                    <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+                    <h3 className="text-lg font-medium text-gray-700 mb-1">
+                      Không có lịch tập nào
+                    </h3>
+                    <p>Bạn không có lịch tập nào vào ngày này.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {getFilteredSchedules()
+                      .filter(
+                        (schedule) =>
+                          schedule.date ===
+                          selectedDate.toISOString().split("T")[0]
+                      )
+                      .sort((a, b) => a.timeStart.localeCompare(b.timeStart))
+                      .map((schedule) => (
+                        <div
+                          key={schedule.id}
+                          className="bg-white border rounded-lg shadow-sm hover:shadow transition-shadow overflow-hidden"
+                        >
+                          <div className="flex">
+                            {/* Time sidebar */}
+                            <div className="w-24 bg-gray-50 py-4 px-3 flex flex-col items-center justify-center border-r">
+                              <div className="text-lg font-medium text-gray-900">
+                                {schedule.timeStart}
+                              </div>
+                              <div className="text-xs text-gray-500">đến</div>
+                              <div className="text-lg font-medium text-gray-900">
+                                {schedule.timeEnd}
+                              </div>
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 p-4">
+                              <div className="flex justify-between items-start mb-3">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <img
+                                      src={
+                                        schedule.customer.avatar ||
+                                        "https://randomuser.me/api/portraits/men/32.jpg"
+                                      }
+                                      alt={schedule.customer.name}
+                                      className="w-10 h-10 rounded-full object-cover"
+                                    />
+                                    <div>
+                                      <h4 className="font-medium text-lg text-gray-900">
+                                        {schedule.customer.name}
+                                      </h4>
+                                      <div className="text-sm text-gray-600">
+                                        {schedule.customer.phone} •{" "}
+                                        {schedule.customer.email}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div>{getStatusBadge(schedule.status)}</div>
+                              </div>
+
+                              <div className="flex items-center text-sm text-gray-600 mb-3">
+                                <MapPin className="h-4 w-4 mr-1 text-gray-500" />
+                                <span>{schedule.location}</span>
+                              </div>
+
+                              {schedule.exercises && (
+                                <div className="bg-blue-50 rounded-lg p-3 mb-3">
+                                  <div className="flex items-center mb-2">
+                                    <Dumbbell className="h-4 w-4 text-blue-600 mr-1" />
+                                    <span className="text-sm font-medium text-blue-600">
+                                      Bài tập đã giao
+                                    </span>
+                                  </div>
+                                  <div className="text-sm text-gray-700 whitespace-pre-line line-clamp-2">
+                                    {schedule.exercises}
+                                  </div>
+                                  <button
+                                    className="text-blue-600 text-xs mt-1 hover:underline"
+                                    onClick={() => {
+                                      setSelectedBooking(schedule);
+                                      setShowDetailsModal(true);
+                                    }}
+                                  >
+                                    Xem chi tiết
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* Hiển thị kết quả buổi tập nếu có */}
+                              {schedule.status === "COMPLETED" &&
+                                schedule.workoutResult && (
+                                  <div className="bg-green-50 rounded-lg p-3 mb-3">
+                                    <div className="flex items-center mb-2">
+                                      <BarChart3 className="h-4 w-4 text-green-600 mr-1" />
+                                      <span className="text-sm font-medium text-green-600">
+                                        Kết quả buổi tập
+                                      </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-sm">
+                                      {schedule.workoutResult
+                                        .calories_burned && (
+                                        <div className="text-gray-700">
+                                          Calo:{" "}
+                                          {
+                                            schedule.workoutResult
+                                              .calories_burned
+                                          }{" "}
+                                          kcal
+                                        </div>
+                                      )}
+                                      {schedule.workoutResult
+                                        .completion_percentage && (
+                                        <div className="text-gray-700">
+                                          Hoàn thành:{" "}
+                                          {
+                                            schedule.workoutResult
+                                              .completion_percentage
+                                          }
+                                          %
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                              {/* Hiển thị đánh giá từ khách hàng */}
+                              {schedule.status === "COMPLETED" &&
+                                schedule.rating && (
+                                  <div className="bg-yellow-50 rounded-lg p-3 mb-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-sm font-medium text-yellow-600">
+                                        Đánh giá từ khách hàng:
+                                      </span>
+                                      <StarRating
+                                        rating={schedule.rating}
+                                        readonly={true}
+                                      />
+                                    </div>
+                                    {schedule.ratingComment && (
+                                      <p className="text-sm text-gray-600 italic">
+                                        "{schedule.ratingComment}"
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+
+                              <div className="flex justify-end items-center mt-3 pt-3 border-t space-x-2">
+                                {schedule.status === "PENDING" && (
+                                  <>
+                                    <button
+                                      className="px-3 py-1.5 bg-green-50 text-green-600 text-sm rounded-lg border border-green-100 hover:bg-green-100 flex items-center"
+                                      onClick={() =>
+                                        confirmStatusChange(
+                                          schedule.id,
+                                          "CONFIRMED"
+                                        )
+                                      }
+                                    >
+                                      <CheckCircle className="h-4 w-4 mr-1" />
+                                      Xác nhận
+                                    </button>
+                                    <button
+                                      className="px-3 py-1.5 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100 hover:bg-red-100 flex items-center"
+                                      onClick={() =>
+                                        confirmStatusChange(
+                                          schedule.id,
+                                          "CANCELLED"
+                                        )
+                                      }
+                                    >
+                                      <XCircle className="h-4 w-4 mr-1" />
+                                      Từ chối
+                                    </button>
+                                  </>
+                                )}
+
+                                {schedule.status === "CONFIRMED" && (
+                                  <>
+                                    <button
+                                      className="px-3 py-1.5 bg-blue-50 text-blue-600 text-sm rounded-lg border border-blue-100 hover:bg-blue-100 flex items-center"
+                                      onClick={() => {
+                                        selectBooking(schedule);
+                                        setShowExerciseModal(true);
+                                      }}
+                                    >
+                                      <Edit3 className="h-4 w-4 mr-1" />
+                                      {schedule.exercises
+                                        ? "Sửa bài tập"
+                                        : "Thêm bài tập"}
+                                    </button>
+                                    <button
+                                      className="px-3 py-1.5 bg-green-50 text-green-600 text-sm rounded-lg border border-green-100 hover:bg-green-100 flex items-center"
+                                      onClick={() =>
+                                        confirmStatusChange(
+                                          schedule.id,
+                                          "COMPLETED"
+                                        )
+                                      }
+                                    >
+                                      <CheckCircle className="h-4 w-4 mr-1" />
+                                      Hoàn thành
+                                    </button>
+                                  </>
+                                )}
+
+                                {schedule.status === "COMPLETED" && (
+                                  <button
+                                    className="px-3 py-1.5 bg-orange-50 text-orange-600 text-sm rounded-lg border border-orange-100 hover:bg-orange-100 flex items-center"
+                                    onClick={() => {
+                                      selectBooking(schedule);
+                                      setShowWorkoutResultModal(true);
+                                    }}
+                                  >
+                                    <BarChart3 className="h-4 w-4 mr-1" />
+                                    {schedule.workoutResult
+                                      ? "Sửa kết quả"
+                                      : "Ghi kết quả"}
+                                  </button>
+                                )}
+
+                                <button
+                                  className="px-3 py-1.5 bg-blue-50 text-blue-600 text-sm rounded-lg border border-blue-100 hover:bg-blue-100"
+                                  onClick={() => {
+                                    setSelectedBooking(schedule);
+                                    setShowDetailsModal(true);
+                                  }}
+                                >
+                                  Xem chi tiết
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal chi tiết buổi tập */}
+      {showDetailsModal && selectedBooking && (
+        <div className="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">
+                Chi tiết buổi tập
+              </h3>
+              <button
+                className="text-gray-400 hover:text-gray-500"
+                onClick={() => setShowDetailsModal(false)}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-6">
+                <div className="flex justify-between items-start mb-2">
+                  <h4 className="text-xl font-medium text-gray-900">
+                    Buổi tập với {selectedBooking.customer.name}
+                  </h4>
+                  {getStatusBadge(selectedBooking.status)}
+                </div>
+
+                <div className="text-gray-600 mb-1">
+                  {moment(selectedBooking.date).format("dddd, DD/MM/YYYY")}
+                </div>
+
+                <div className="text-gray-600">
+                  {selectedBooking.timeStart} - {selectedBooking.timeEnd},{" "}
+                  {selectedBooking.location}
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h5 className="font-medium text-gray-900 mb-3">
+                  Thông tin khách hàng
+                </h5>
+                <div className="flex items-center gap-4 mb-4">
+                  <img
+                    src={
+                      selectedBooking.customer.avatar ||
+                      "https://randomuser.me/api/portraits/men/32.jpg"
+                    }
+                    alt={selectedBooking.customer.name}
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                  <div>
+                    <div className="font-medium text-lg">
+                      {selectedBooking.customer.name}
+                    </div>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <div className="flex items-center">
+                        <Phone className="h-4 w-4 mr-2" />
+                        <span>{selectedBooking.customer.phone}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <Mail className="h-4 w-4 mr-2" />
+                        <span>{selectedBooking.customer.email}</span>
                       </div>
                     </div>
                   </div>
+                </div>
+              </div>
 
-                  <div className="mt-4 border-t pt-4">
-                    <button
-                      className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
-                        selectedEvent.schedule.isAvailable
-                          ? "bg-red-100 text-red-800 hover:bg-red-200"
-                          : "bg-blue-100 text-blue-800 hover:bg-blue-200"
-                      }`}
-                      onClick={() => {
-                        // Toggle availability
-                        const updatedSchedules = schedules.map((sch) =>
-                          sch.id === selectedEvent.schedule.id
-                            ? { ...sch, isAvailable: !sch.isAvailable }
-                            : sch
-                        );
-
-                        setSchedules(updatedSchedules);
-
-                        // Update events
-                        setEvents(
-                          events.map((event) =>
-                            event.type === "schedule" &&
-                            event.schedule.id === selectedEvent.schedule.id
-                              ? {
-                                  ...event,
-                                  schedule: {
-                                    ...event.schedule,
-                                    isAvailable: !event.schedule.isAvailable,
-                                  },
-                                }
-                              : event
-                          )
-                        );
-
-                        setSelectedEvent(null);
-                        setIsModalOpen(false);
-
-                        toast.success(
-                          "Cập nhật trạng thái ca làm việc thành công!"
-                        );
-                      }}
-                    >
-                      {selectedEvent.schedule.isAvailable
-                        ? "Đóng ca tập này"
-                        : "Mở lại ca tập này"}
-                    </button>
+              {selectedBooking.exercises && (
+                <div className="mb-6">
+                  <h5 className="font-medium text-gray-900 mb-3">
+                    Bài tập đã giao
+                  </h5>
+                  <div className="bg-blue-50 rounded-lg p-4 text-sm text-gray-700 whitespace-pre-line">
+                    {selectedBooking.exercises}
                   </div>
                 </div>
               )}
+
+              {selectedBooking.workoutResult && (
+                <div className="mb-6">
+                  <h5 className="font-medium text-gray-900 mb-3">
+                    Kết quả buổi tập
+                  </h5>
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                      {selectedBooking.workoutResult.calories_burned && (
+                        <div>
+                          <span className="text-gray-600">Calo tiêu thụ:</span>
+                          <div className="font-medium">
+                            {selectedBooking.workoutResult.calories_burned} kcal
+                          </div>
+                        </div>
+                      )}
+                      {selectedBooking.workoutResult.current_weight && (
+                        <div>
+                          <span className="text-gray-600">Cân nặng:</span>
+                          <div className="font-medium">
+                            {selectedBooking.workoutResult.current_weight} kg
+                          </div>
+                        </div>
+                      )}
+                      {selectedBooking.workoutResult.completion_percentage && (
+                        <div>
+                          <span className="text-gray-600">Hoàn thành:</span>
+                          <div className="font-medium">
+                            {
+                              selectedBooking.workoutResult
+                                .completion_percentage
+                            }
+                            %
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {selectedBooking.workoutResult.trainer_feedback && (
+                      <div className="mt-3 pt-3 border-t border-green-200">
+                        <span className="text-gray-600 text-sm">
+                          Nhận xét của PT:
+                        </span>
+                        <p className="text-gray-700 mt-1">
+                          {selectedBooking.workoutResult.trainer_feedback}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {selectedBooking.status === "COMPLETED" &&
+                selectedBooking.rating && (
+                  <div className="mb-6">
+                    <h5 className="font-medium text-gray-900 mb-3">
+                      Đánh giá từ khách hàng
+                    </h5>
+                    <div className="bg-yellow-50 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-700">
+                          Số sao:
+                        </span>
+                        <StarRating
+                          rating={selectedBooking.rating}
+                          readonly={true}
+                        />
+                      </div>
+                      {selectedBooking.ratingComment && (
+                        <div>
+                          <span className="text-sm font-medium text-gray-700">
+                            Nhận xét:
+                          </span>
+                          <p className="text-sm text-gray-600 mt-1 italic">
+                            "{selectedBooking.ratingComment}"
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              {selectedBooking.notes && (
+                <div className="mb-6">
+                  <h5 className="font-medium text-gray-900 mb-3">Ghi chú</h5>
+                  <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-700">
+                    {selectedBooking.notes}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4 border-t">
+                {selectedBooking.status === "PENDING" && (
+                  <>
+                    <button
+                      className="flex-1 bg-green-100 text-green-600 hover:bg-green-200 py-2 rounded-lg flex items-center justify-center"
+                      onClick={() => {
+                        confirmStatusChange(selectedBooking.id, "CONFIRMED");
+                        setShowDetailsModal(false);
+                      }}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Xác nhận
+                    </button>
+                    <button
+                      className="flex-1 bg-red-100 text-red-600 hover:bg-red-200 py-2 rounded-lg flex items-center justify-center"
+                      onClick={() => {
+                        confirmStatusChange(selectedBooking.id, "CANCELLED");
+                        setShowDetailsModal(false);
+                      }}
+                    >
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Từ chối
+                    </button>
+                  </>
+                )}
+
+                {selectedBooking.status === "CONFIRMED" && (
+                  <>
+                    <button
+                      className="flex-1 bg-blue-100 text-blue-600 hover:bg-blue-200 py-2 rounded-lg flex items-center justify-center"
+                      onClick={() => {
+                        selectBooking(selectedBooking);
+                        setShowDetailsModal(false);
+                        setShowExerciseModal(true);
+                      }}
+                    >
+                      <Edit3 className="h-4 w-4 mr-2" />
+                      {selectedBooking.exercises
+                        ? "Sửa bài tập"
+                        : "Thêm bài tập"}
+                    </button>
+                    <button
+                      className="flex-1 bg-green-100 text-green-600 hover:bg-green-200 py-2 rounded-lg flex items-center justify-center"
+                      onClick={() => {
+                        confirmStatusChange(selectedBooking.id, "COMPLETED");
+                        setShowDetailsModal(false);
+                      }}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Hoàn thành
+                    </button>
+                  </>
+                )}
+
+                {selectedBooking.status === "COMPLETED" && (
+                  <button
+                    className="flex-1 bg-orange-100 text-orange-600 hover:bg-orange-200 py-2 rounded-lg flex items-center justify-center"
+                    onClick={() => {
+                      selectBooking(selectedBooking);
+                      setShowDetailsModal(false);
+                      setShowWorkoutResultModal(true);
+                    }}
+                  >
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    {selectedBooking.workoutResult
+                      ? "Sửa kết quả"
+                      : "Ghi kết quả"}
+                  </button>
+                )}
+
+                <button
+                  className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 rounded-lg"
+                  onClick={() => setShowDetailsModal(false)}
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal thêm/sửa bài tập */}
+      {showExerciseModal && selectedBooking && (
+        <div className="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">
+                {selectedBooking.exercises
+                  ? "Chỉnh sửa bài tập"
+                  : "Thêm bài tập"}
+              </h3>
+              <button
+                className="text-gray-400 hover:text-gray-500"
+                onClick={() => setShowExerciseModal(false)}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-6">
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <div className="flex items-center space-x-3">
+                    <img
+                      src={
+                        selectedBooking.customer.avatar ||
+                        "https://randomuser.me/api/portraits/men/32.jpg"
+                      }
+                      alt={selectedBooking.customer.name}
+                      className="w-12 h-12 rounded-full object-cover"
+                    />
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {selectedBooking.customer.name}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {moment(selectedBooking.date).format("DD/MM/YYYY")},{" "}
+                        {selectedBooking.timeStart} - {selectedBooking.timeEnd}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {selectedBooking.location}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Nội dung bài tập chi tiết
+                </label>
+                <textarea
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 min-h-[250px] focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  placeholder="Ví dụ:
+1. Khởi động (10 phút)
+   - Chạy bộ nhẹ: 5 phút
+   - Giãn cơ động: 5 phút
+
+2. Bài tập chính (40 phút)
+   - Squat: 3 sets x 12 reps
+   - Push-up: 3 sets x 10 reps
+   - Plank: 3 sets x 30 giây
+
+3. Thư giãn (10 phút)
+   - Giãn cơ tĩnh
+   - Thở sâu"
+                  value={exercises}
+                  onChange={(e) => setExercises(e.target.value)}
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  Mô tả chi tiết các bài tập, số lượng sets, reps và thời gian
+                  nghỉ
+                </p>
+              </div>
+
+              <div className="mb-6">
+                <div className="block text-sm font-medium text-gray-700 mb-3">
+                  <p className="text-sm text-gray-600 mb-3">
+                    Bạn có chắc chắn muốn{" "}
+                    {confirmationAction.type === "CONFIRMED" && "xác nhận"}
+                    {confirmationAction.type === "COMPLETED" &&
+                      "đánh dấu hoàn thành"}
+                    {confirmationAction.type === "CANCELLED" && "hủy"} buổi tập
+                    với:
+                  </p>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="font-medium text-gray-900">
+                      {confirmationAction.data.customer.name}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {moment(confirmationAction.data.date).format(
+                        "DD/MM/YYYY"
+                      )}
+                      , {confirmationAction.data.timeStart} -{" "}
+                      {confirmationAction.data.timeEnd}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4 border-t">
+                <button
+                  className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  onClick={() => setShowExerciseModal(false)}
+                  disabled={isSaving}
+                >
+                  Hủy
+                </button>
+                <button
+                  className="px-6 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  onClick={handleSaveExercises}
+                  disabled={isSaving || !exercises.trim()}
+                >
+                  {isSaving ? "Đang lưu..." : "Lưu bài tập"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal ghi kết quả buổi tập */}
+      {showWorkoutResultModal && selectedBooking && (
+        <div className="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl overflow-hidden max-h-[90vh]">
+            <div className="px-6 py-4 border-b flex justify-between items-center">
+              <h3 className="text-lg font-medium text-gray-900">
+                {selectedBooking.workoutResult
+                  ? "Cập nhật kết quả buổi tập"
+                  : "Ghi kết quả buổi tập"}
+              </h3>
+              <button
+                className="text-gray-400 hover:text-gray-500"
+                onClick={() => setShowWorkoutResultModal(false)}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <WorkoutResultForm
+              booking={selectedBooking}
+              onClose={() => setShowWorkoutResultModal(false)}
+              onSave={handleSaveWorkoutResult}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Modal xác nhận hành động */}
+      {showConfirmationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b">
+              <h3 className="text-lg font-medium text-gray-900">
+                Xác nhận hành động
+              </h3>
+            </div>
+
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100">
+                  <AlertCircle className="h-6 w-6 text-yellow-600" />
+                </div>
+              </div>
+
+              <div className="text-center">
+                <p className="text-gray-600 mb-4">
+                  {confirmationAction.type === "CONFIRMED" &&
+                    "Bạn có chắc chắn muốn xác nhận buổi tập này?"}
+                  {confirmationAction.type === "CANCELLED" &&
+                    "Bạn có chắc chắn muốn hủy buổi tập này?"}
+                  {confirmationAction.type === "COMPLETED" &&
+                    "Bạn có chắc chắn đã hoàn thành buổi tập này?"}
+                </p>
+                <p className="text-sm text-gray-500">
+                  Hành động này không thể hoàn tác.
+                </p>
+              </div>
+
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                  onClick={() => setShowConfirmationModal(false)}
+                >
+                  Hủy
+                </button>
+                <button
+                  className={`px-4 py-2 text-white rounded-lg transition-colors ${
+                    confirmationAction.type === "CANCELLED"
+                      ? "bg-red-600 hover:bg-red-700"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+                  onClick={() => {
+                    handleChangeStatus(
+                      confirmationAction.data.bookingId,
+                      confirmationAction.type
+                    );
+                    setShowConfirmationModal(false);
+                  }}
+                >
+                  {confirmationAction.type === "CONFIRMED" && "Xác nhận"}
+                  {confirmationAction.type === "CANCELLED" && "Hủy buổi tập"}
+                  {confirmationAction.type === "COMPLETED" && "Hoàn thành"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

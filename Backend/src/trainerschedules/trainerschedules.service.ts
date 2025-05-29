@@ -86,7 +86,21 @@ export class TrainerSchedulesService {
     });
 
     if (existingAppointment) {
-      return { available: false, reason: 'Ca này đã có lịch hẹn' };
+      return { available: false, reason: 'Ca này đã có lịch hẹn đã được xác nhận' };
+    }
+
+    // 3. Kiểm tra xem đã có lịch hẹn đang chờ xác nhận vào ngày và ca này chưa
+    const pendingAppointment = await this.appointmentRepository.findOne({
+      where: {
+        trainer: { id: trainerId },
+        date,
+        timeSlot: { id: timeSlotId },
+        status: 'PENDING',
+      },
+    });
+
+    if (pendingAppointment) {
+      return { available: false, reason: 'Ca này đã có lịch hẹn đang chờ xác nhận' };
     }
 
     return { available: true };

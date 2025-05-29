@@ -216,6 +216,28 @@ export default function ListPTComponent() {
     }
   };
 
+  function getDayOfWeekInEnglish(dateString) {
+    // Chuyển đổi chuỗi ngày thành đối tượng Date
+    const date = new Date(dateString);
+
+    // Mảng chứa tên các ngày trong tuần bằng tiếng Anh viết hoa
+    const daysOfWeek = [
+      "SUNDAY",
+      "MONDAY",
+      "TUESDAY",
+      "WEDNESDAY",
+      "THURSDAY",
+      "FRIDAY",
+      "SATURDAY",
+    ];
+
+    // Lấy index của thứ (0: Chủ nhật, 1: Thứ 2, ...)
+    const dayIndex = date.getDay();
+
+    // Trả về tên thứ tương ứng
+    return daysOfWeek[dayIndex];
+  }
+
   const handleSubmitBooking = async () => {
     try {
       const { date, notes, selectedSlot } = bookingData;
@@ -223,6 +245,35 @@ export default function ListPTComponent() {
       // Kiểm tra dữ liệu
       if (!date || !selectedSlot) {
         alert("Vui lòng chọn ngày và ca tập");
+        return;
+      }
+
+      // Kiểm tra xem slot đã được đặt chưa TRƯỚC KHI gửi request
+      const isAlreadyBooked = bookedSlots.some((booking) => {
+        const isSameDate = booking.date === date;
+        const isSameSlot =
+          booking.timeSlotId === selectedSlot ||
+          booking.time_slot_id === selectedSlot ||
+          booking.timeSlot?.id === selectedSlot;
+        const isActiveBooking = ["CONFIRMED", "PENDING"].includes(
+          booking.status?.toUpperCase() || ""
+        );
+
+        console.log("Kiểm tra booking trước khi đặt:", {
+          bookingDate: booking.date,
+          selectedDate: date,
+          bookingSlotId: booking.timeSlotId || booking.time_slot_id || booking.timeSlot?.id,
+          bookingTimeSlot: booking.timeSlot,
+          selectedSlot: selectedSlot,
+          bookingStatus: booking.status,
+          result: isSameDate && isSameSlot && isActiveBooking,
+        });
+
+        return isSameDate && isSameSlot && isActiveBooking;
+      });
+
+      if (isAlreadyBooked) {
+        alert("Ca tập này đã được đặt. Vui lòng chọn ca khác.");
         return;
       }
 
@@ -240,12 +291,9 @@ export default function ListPTComponent() {
         const decoded = jwtDecode(token);
         userId = decoded.userId || decoded.sub || decoded.id;
 
-        // Kiểm tra userId trước khi gửi
         if (!userId) {
           throw new Error("Không tìm thấy ID người dùng trong token");
         }
-
-        console.log("Thông tin token giải mã:", decoded);
       } catch (tokenError) {
         console.error("Lỗi giải mã token:", tokenError);
         alert("Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại");
@@ -253,33 +301,37 @@ export default function ListPTComponent() {
         return;
       }
 
-      // Khai báo biến response ở phạm vi rộng hơn
-      let response;
-      let timeSlotId = selectedSlot;
+      // Kiểm tra với API
+      const dayOfWeek = getDayOfWeekInEnglish(date);
+      const isAvailable = await checkSlotAvailability(
+        selectedTrainer.id,
+        date,
+        selectedSlot
+      );
 
-      // Đảm bảo selectedSlot là một UUID hợp lệ
-      if (selectedSlot && selectedSlot.includes("ts-")) {
-        // Nếu selectedSlot có tiền tố 'ts-', cần loại bỏ nó
-        timeSlotId = selectedSlot.replace("ts-", "");
+      if (!isAvailable) {
+        alert("Ca tập này hiện không khả dụng. Vui lòng chọn ca khác.");
+        // Refresh lại danh sách đã đặt để có dữ liệu mới nhất
+        await refreshBookedSlots();
+        return;
       }
 
-      // Log dữ liệu gửi đi để kiểm tra
       console.log("Dữ liệu đặt lịch:", {
         trainerId: selectedTrainer.id,
         userId,
         date,
-        timeSlotId,
+        timeSlotId: selectedSlot,
         notes: notes || "",
       });
 
       // Gửi request đến API
-      response = await axios.post(
+      const response = await axios.post(
         "http://localhost:3000/appointments",
         {
           trainerId: selectedTrainer.id,
           userId,
           date,
-          timeSlotId,
+          timeSlotId: selectedSlot,
           notes: notes || "",
         },
         {
@@ -289,24 +341,33 @@ export default function ListPTComponent() {
         }
       );
 
-      // Trong hàm handleSubmitBooking, sau khi đặt thành công
-      if (
-        response &&
-        (response.status === 200 || response.status === 201 || response.data)
-      ) {
-        // Thêm lịch mới vào danh sách đã đặt
-        setBookedSlots([
-          ...bookedSlots,
-          {
-            date: bookingData.date,
-            timeSlotId: bookingData.selectedSlot,
-            status: "PENDING",
-          },
-        ]);
+      if (response && (response.status === 200 || response.status === 201)) {
+        // Tạo booking object mới với đầy đủ thông tin
+        const newBooking = {
+          id: response.data.data?.id || `temp-${Date.now()}`,
+          date: date,
+          timeSlotId: selectedSlot,
+          time_slot_id: selectedSlot, // Thêm cả 2 field để đảm bảo
+          timeSlot: { id: selectedSlot }, // Thêm timeSlot object để phù hợp với cấu trúc mới
+          status: "PENDING",
+          trainerId: selectedTrainer.id,
+          userId: userId,
+          notes: notes || "",
+          createdAt: new Date().toISOString(),
+        };
+
+        // Cập nhật state ngay lập tức
+        setBookedSlots((prevBookedSlots) => {
+          const newSlots = [...prevBookedSlots, newBooking];
+          console.log("Updated booked slots:", newSlots);
+          return newSlots;
+        });
 
         alert(
           "Đặt lịch thành công! Chúng tôi sẽ thông báo khi huấn luyện viên xác nhận."
         );
+
+        // Reset form và đóng modal
         setShowBookingModal(false);
         setBookingData({
           date: "",
@@ -316,12 +377,19 @@ export default function ListPTComponent() {
           selectedDay: undefined,
           selectedSlot: undefined,
         });
+
+        // Refresh lại danh sách từ server sau 1 giây để đảm bảo đồng bộ
+        setTimeout(async () => {
+          await refreshBookedSlots();
+        }, 1000);
       }
     } catch (error) {
       console.error("Lỗi khi đặt lịch:", error.response?.data || error);
 
-      // Hiển thị thông tin lỗi chi tiết hơn để debug
-      if (error.response?.data?.message) {
+      if (error.response?.status === 409) {
+        alert("Ca tập này đã được đặt bởi người khác. Vui lòng chọn ca khác.");
+        await refreshBookedSlots();
+      } else if (error.response?.data?.message) {
         if (Array.isArray(error.response.data.message)) {
           alert(`Đặt lịch thất bại: ${error.response.data.message.join(", ")}`);
         } else {
@@ -330,6 +398,37 @@ export default function ListPTComponent() {
       } else {
         alert("Có lỗi xảy ra khi đặt lịch. Vui lòng thử lại sau.");
       }
+    }
+  };
+
+  // Thêm hàm refresh danh sách đã đặt
+  const refreshBookedSlots = async () => {
+    try {
+      const token = localStorage.getItem("userToken");
+      if (!token || !selectedTrainer) return;
+
+      const decoded = jwtDecode(token);
+      const userId = decoded.userId || decoded.sub || decoded.id;
+      if (!userId) return;
+
+      console.log("Refreshing booked slots for trainer:", selectedTrainer.id);
+
+      const bookedResponse = await axios.get(
+        `http://localhost:3000/appointments/user/${userId}/trainer/${selectedTrainer.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      console.log("Refreshed booked slots response:", bookedResponse.data);
+
+      if (bookedResponse.data && bookedResponse.data.data) {
+        setBookedSlots(bookedResponse.data.data);
+      }
+    } catch (error) {
+      console.error("Lỗi khi refresh lịch đã đặt:", error);
     }
   };
 
@@ -492,7 +591,7 @@ export default function ListPTComponent() {
                 />
               </div>
               <button
-                className="absolute top-4 right-4 bg-white/80 backdrop-blur-sm p-2 rounded-full text-gray-700 hover:text-gray-900 hover:bg-white"
+                className="absolute top-4 right-4 bg-white/30 backdrop-blur-sm p-2 rounded-full text-white hover:bg-white/50 transition-colors"
                 onClick={() => setSelectedTrainer(null)}
               >
                 <svg
@@ -920,12 +1019,43 @@ export default function ListPTComponent() {
                           const endTime = slot.endTime?.substring(0, 5) || "";
 
                           const isAlreadyBooked = bookedSlots.some(
-                            (booking) =>
-                              booking.date === formattedDate &&
-                              booking.timeSlotId === slot.id &&
-                              ["CONFIRMED", "PENDING"].includes(
-                                booking.status?.toUpperCase() || ""
-                              )
+                            (booking) => {
+                              const isSameDate = booking.date === formattedDate;
+                              const isSameSlot =
+                                booking.timeSlotId === slot.id ||
+                                booking.time_slot_id === slot.id ||
+                                booking.timeSlot?.id === slot.id ||
+                                String(booking.timeSlotId) ===
+                                  String(slot.id) ||
+                                String(booking.time_slot_id) ===
+                                  String(slot.id) ||
+                                String(booking.timeSlot?.id) ===
+                                  String(slot.id);
+                              const isActiveBooking = [
+                                "CONFIRMED",
+                                "PENDING",
+                              ].includes(booking.status?.toUpperCase() || "");
+
+                              // Debug log
+                              if (isSameDate && isSameSlot) {
+                                console.log("Found matching booking:", {
+                                  bookingDate: booking.date,
+                                  currentDate: formattedDate,
+                                  bookingSlotId:
+                                    booking.timeSlotId || booking.time_slot_id || booking.timeSlot?.id,
+                                  bookingTimeSlot: booking.timeSlot,
+                                  currentSlotId: slot.id,
+                                  bookingStatus: booking.status,
+                                  isActive: isActiveBooking,
+                                  finalResult:
+                                    isSameDate && isSameSlot && isActiveBooking,
+                                });
+                              }
+
+                              return (
+                                isSameDate && isSameSlot && isActiveBooking
+                              );
+                            }
                           );
 
                           return (

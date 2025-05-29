@@ -3,6 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppointmentsService } from './appoinments.service';
 import { AppointmentsController } from './appoinments.controller';
 import { Appointment } from '../entities/appointment.entity';
+import { Rating } from '../entities/rating.entity';
+import { WorkoutResult } from '../entities/workout-result.entity';
 import { TrainingTimeSlot } from '../entities/trainingTimeSlot.entity';
 import { User } from '../entities/user.entity';
 import { Trainer } from '../entities/trainer.entity';
@@ -12,6 +14,8 @@ import { TrainerschedulesModule } from '../trainerschedules/trainerschedules.mod
   imports: [
     TypeOrmModule.forFeature([
       Appointment,
+      Rating,
+      WorkoutResult,
       TrainingTimeSlot, // Thêm entity này
       User,
       Trainer,

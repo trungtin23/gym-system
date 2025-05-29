@@ -280,61 +280,64 @@ export default function GymMemberProfile() {
                 />
               </div>
               <h2 className="text-xl font-bold text-center">
-                {userInf?.full_name || ""}
+                {userInf?.full_name || "Chưa có thông tin"}
               </h2>
               <p className="text-gray-600 text-center">
-                {userInf?.email || ""}
+                {userInf?.email || "Chưa có thông tin"}
               </p>
               <div className="mt-2 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                {displayData.membershipType}
+                {userInf?.membershipType || displayData.membershipType || "Chưa có thông tin"}
               </div>
             </div>
 
             <div className="border-t pt-4">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600">Thành viên từ:</span>
-                <span className="font-medium">{displayData.memberSince}</span>
+                <span className="font-medium">{userInf?.memberSince || displayData.memberSince || "Chưa có thông tin"}</span>
               </div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600">Chiều cao:</span>
                 <span className="font-medium">
-                  {userInf?.health.height + " cm" || ""}
+                  {userInf?.health?.height ? userInf.health.height + " cm" : "Chưa có thông tin"}
                 </span>
               </div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600">Cân nặng:</span>
                 <span className="font-medium">
-                  {userInf?.health.weight + " kg" || ""}
+                  {userInf?.health?.weight ? userInf.health.weight + " kg" : "Chưa có thông tin"}
                 </span>
               </div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600">Tỷ lệ mỡ:</span>
                 <span className="font-medium">
-                  {userInf?.health.bodyFatPercentage + " %" || ""}
+                  {userInf?.health?.bodyFatPercentage ? userInf.health.bodyFatPercentage + " %" : "Chưa có thông tin"}
                 </span>
               </div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-600">BMI:</span>
                 <span className="font-medium">
-                  {" "}
-                  {userInf?.health.bmi || ""}
+                  {userInf?.health?.bmi ? userInf.health.bmi : "Chưa có thông tin"}
                 </span>
               </div>
             </div>
 
             <div className="border-t pt-4 mt-4">
               <h3 className="font-medium mb-2">Mục tiêu tập luyện</h3>
-              <ul className="space-y-2">
-                {userInf?.health.trainingGoals.map((goal, index) => (
-                  <li
-                    key={index}
-                    className="flex items-center gap-2 text-gray-700"
-                  >
-                    <TrendingUp size={16} className="text-blue-500" />
-                    {goal}
-                  </li>
-                ))}
-              </ul>
+              {userInf?.health?.trainingGoals && userInf.health.trainingGoals.length > 0 ? (
+                <ul className="space-y-2">
+                  {userInf.health.trainingGoals.map((goal, index) => (
+                    <li
+                      key={index}
+                      className="flex items-center gap-2 text-gray-700"
+                    >
+                      <TrendingUp size={16} className="text-blue-500" />
+                      {goal}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-gray-600">Chưa có thông tin</p>
+              )}
             </div>
           </div>
         </aside>
@@ -501,9 +504,9 @@ export default function GymMemberProfile() {
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="text-lg font-semibold mb-1">
-                  Gói hội viên {displayData.membershipType}
+                  Gói hội viên {userInf?.membershipType || displayData.membershipType || "Chưa có thông tin"}
                 </h3>
-                <p>Hết hạn: 05/02/2026</p>
+                <p>Hết hạn: {userInf?.membershipExpiry || "Chưa có thông tin"}</p>
               </div>
               <button className="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium">
                 Gia hạn

@@ -16,6 +16,8 @@ import { HttpStatus, HttpMessage } from '../global/enums/enum';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { AppointmentsService } from './appoinments.service';
 import { CreateAppointmentDto } from './dto/create-appoinment.dto';
+import { CreateRatingDto } from './dto/create-rating.dto';
+import { CreateWorkoutResultDto } from './dto/create-workout-result.dto';
 import { Roles } from 'src/auth/roles.decorator';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -65,7 +67,7 @@ export class AppointmentsController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.STAFF)
+  @Roles(Role.ADMIN, Role.USER, Role.STAFF)
   async findAll() {
     try {
       const appointments = await this.appointmentsService.findAll();
@@ -273,5 +275,177 @@ export class AppointmentsController {
     }
 
     return trainer.id;
+  }
+
+  // Rating endpoints
+  @Post(':id/rating')
+  @UseGuards(JwtAuthGuard)
+  async createRating(
+    @Param('id') appointmentId: string,
+    @Body() createRatingDto: CreateRatingDto,
+    @Req() req
+  ) {
+    try {
+      const userId = req.user.id;
+      const rating = await this.appointmentsService.createRating(
+        appointmentId,
+        userId,
+        createRatingDto,
+      );
+      return new ResponeData<any>(
+        'Rating created successfully',
+        HttpStatus.CREATED,
+        rating,
+      );
+    } catch (error) {
+      return new ResponeData<null>(
+        error.message || HttpMessage.ERROR_MESSAGE,
+        HttpStatus.ERROR,
+        null,
+      );
+    }
+  }
+
+  @Get(':id/rating')
+  @UseGuards(JwtAuthGuard)
+  async getRating(@Param('id') appointmentId: string, @Req() req) {
+    try {
+      const userId = req.user.id;
+      const rating = await this.appointmentsService.getRating(appointmentId, userId);
+      
+      if (!rating) {
+        return new ResponeData<null>(
+          'No rating found for this appointment',
+          HttpStatus.NOT_FOUND,
+          null,
+        );
+      }
+
+      return new ResponeData<any>(
+        HttpMessage.SUCCESS_MESSAGE,
+        HttpStatus.SUCCESS,
+        rating,
+      );
+    } catch (error) {
+      return new ResponeData<null>(
+        error.message || HttpMessage.ERROR_MESSAGE,
+        HttpStatus.ERROR,
+        null,
+      );
+    }
+  }
+
+  @Patch(':id/rating')
+  @UseGuards(JwtAuthGuard)
+  async updateRating(
+    @Param('id') appointmentId: string,
+    @Body() updateRatingDto: CreateRatingDto,
+    @Req() req
+  ) {
+    try {
+      const userId = req.user.id;
+      const rating = await this.appointmentsService.updateRating(
+        appointmentId,
+        userId,
+        updateRatingDto,
+      );
+      return new ResponeData<any>(
+        'Rating updated successfully',
+        HttpStatus.SUCCESS,
+        rating,
+      );
+    } catch (error) {
+      return new ResponeData<null>(
+        error.message || HttpMessage.ERROR_MESSAGE,
+        HttpStatus.ERROR,
+        null,
+      );
+    }
+  }
+
+  // Workout result endpoints
+  @Post(':id/workout-result')
+  @UseGuards(JwtAuthGuard)
+  async createWorkoutResult(
+    @Param('id') appointmentId: string,
+    @Body() createWorkoutResultDto: CreateWorkoutResultDto,
+    @Req() req
+  ) {
+    try {
+      const userId = req.user.id;
+      const workoutResult = await this.appointmentsService.createWorkoutResult(
+        appointmentId,
+        userId,
+        createWorkoutResultDto,
+      );
+      return new ResponeData<any>(
+        'Workout result created successfully',
+        HttpStatus.CREATED,
+        workoutResult,
+      );
+    } catch (error) {
+      return new ResponeData<null>(
+        error.message || HttpMessage.ERROR_MESSAGE,
+        HttpStatus.ERROR,
+        null,
+      );
+    }
+  }
+
+  @Get(':id/workout-result')
+  @UseGuards(JwtAuthGuard)
+  async getWorkoutResult(@Param('id') appointmentId: string, @Req() req) {
+    try {
+      const userId = req.user.id;
+      const workoutResult = await this.appointmentsService.getWorkoutResult(appointmentId, userId);
+      
+      if (!workoutResult) {
+        return new ResponeData<null>(
+          'No workout result found for this appointment',
+          HttpStatus.NOT_FOUND,
+          null,
+        );
+      }
+
+      return new ResponeData<any>(
+        HttpMessage.SUCCESS_MESSAGE,
+        HttpStatus.SUCCESS,
+        workoutResult,
+      );
+    } catch (error) {
+      return new ResponeData<null>(
+        error.message || HttpMessage.ERROR_MESSAGE,
+        HttpStatus.ERROR,
+        null,
+      );
+    }
+  }
+
+  @Patch(':id/workout-result')
+  @UseGuards(JwtAuthGuard)
+  async updateWorkoutResult(
+    @Param('id') appointmentId: string,
+    @Body() updateWorkoutResultDto: CreateWorkoutResultDto,
+    @Req() req
+  ) {
+    try {
+      const userId = req.user.id;
+      const workoutResult = await this.appointmentsService.updateWorkoutResult(
+        appointmentId,
+        userId,
+        updateWorkoutResultDto,
+      );
+      return new ResponeData<any>(
+        'Workout result updated successfully',
+        HttpStatus.SUCCESS,
+        workoutResult,
+      );
+    } catch (error) {
+      return new ResponeData<null>(
+        error.message || HttpMessage.ERROR_MESSAGE,
+        HttpStatus.ERROR,
+        null,
+      );
+    }
   }
 }

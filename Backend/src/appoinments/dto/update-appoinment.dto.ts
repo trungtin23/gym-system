@@ -15,6 +15,10 @@ export class UpdateAppointmentDto {
   @IsOptional()
   notes?: string;
 
+  @IsString()
+  @IsOptional()
+  exercises?: string;
+
   @IsEnum(['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'])
   @IsOptional()
   status?: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';

@@ -4,7 +4,7 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { AuthContext } from "../contexts/AuthProvider";
 
 export default function Header() {
-  const { isLoggedIn, setIsLoggedIn, setUser, isLoading } =
+  const { isLoggedIn, setIsLoggedIn, setUser, isLoading, user } =
     useContext(AuthContext);
   const [showMenu, setShowMenu] = useState(false);
   const navigate = useNavigate();
@@ -48,7 +48,10 @@ export default function Header() {
                       </a>
                     </li>
                     <li className="nav-item font-bold">
-                      <a className="page-scroll nav-link" href="/schedule">
+                      <a 
+                        className="page-scroll nav-link" 
+                        href={isLoggedIn && user && user.data && user.data.role === 'TRAINER' ? "/schedule" : "/memberschedule"}
+                      >
                         Lịch Tập
                       </a>
                     </li>

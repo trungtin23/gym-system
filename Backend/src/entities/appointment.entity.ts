@@ -3,6 +3,7 @@ import {
   PrimaryGeneratedColumn,
   Column,
   ManyToOne,
+  OneToOne,
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
@@ -10,6 +11,8 @@ import {
 import { User } from './user.entity';
 import { Trainer } from './trainer.entity';
 import { TrainingTimeSlot } from './trainingTimeSlot.entity';
+import { Rating } from './rating.entity';
+import { WorkoutResult } from './workout-result.entity';
 
 @Entity('appointments')
 export class Appointment {
@@ -34,12 +37,24 @@ export class Appointment {
   @Column({ type: 'varchar', length: 255, nullable: true })
   notes: string;
 
+  @Column({ type: 'text', nullable: true })
+  exercises: string;
+
   @Column({
     type: 'enum',
     enum: ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED'],
     default: 'PENDING',
   })
   status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+
+  @Column({ type: 'varchar', length: 255, nullable: true, default: 'Phòng tập chính' })
+  location: string;
+
+  @OneToOne(() => Rating, (rating) => rating.appointment, { nullable: true })
+  rating: Rating;
+
+  @OneToOne(() => WorkoutResult, (workoutResult) => workoutResult.appointment, { nullable: true })
+  workoutResult: WorkoutResult;
 
   @CreateDateColumn({
     name: 'created_at',

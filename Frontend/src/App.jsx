@@ -10,6 +10,7 @@ import Header from "./layout/Header";
 import Profile from "./page/Profile";
 import ListPT from "./page/ListPT";
 import Schedule from "./page/Schedule";
+import TrainingSchedule from "./page/TrainingSchedule";
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/listPT" element={<ListPT />} />
           <Route path="/schedule" element={<Schedule />} />
+          <Route path="/memberschedule" element={<TrainingSchedule />} />
         </Route>
       </Routes>
     </div>

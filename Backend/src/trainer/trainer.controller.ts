@@ -25,6 +25,39 @@ export class TrainerController {
     return this.trainerService.getAllTrainers();
   }
 
+  @Get('user/:userId')
+  async getTrainerByUserId(@Param('userId') userId: string) {
+    try {
+      const trainer = await this.trainerService.getTrainerByUserId(userId);
+      return {
+        status: 'SUCCESS',
+        data: trainer,
+      };
+    } catch (error) {
+      return {
+        status: 'ERROR',
+        message: error.message,
+        data: null,
+      };
+    }
+  }
+
+  @Post('seed-sample-data')
+  async seedSampleData() {
+    try {
+      await this.trainerService.seedSampleData();
+      return {
+        status: 'SUCCESS',
+        message: 'Sample data created successfully',
+      };
+    } catch (error) {
+      return {
+        status: 'ERROR',
+        message: error.message,
+      };
+    }
+  }
+
   @Get(':id')
   async getTrainerById(@Param('id') id: string) {
     return this.trainerService.getTrainerById(id);
